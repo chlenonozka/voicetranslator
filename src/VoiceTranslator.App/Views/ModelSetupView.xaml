@@ -1,0 +1,24 @@
+<UserControl x:Class="VoiceTranslator.App.Views.ModelSetupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             AutomationProperties.Name="Model setup and license information">
+    <Border Padding="16"
+            BorderBrush="#FFB8B8B8"
+            BorderThickness="1"
+            CornerRadius="4">
+        <StackPanel>
+            <TextBlock FontSize="18"
+                       FontWeight="SemiBold"
+                       Text="Model setup" />
+            <TextBlock Margin="0,8,0,0"
+                       AutomationProperties.Name="Model preflight status"
+                       Text="{Binding ModelPreflightState}" />
+            <TextBlock Margin="0,8,0,0"
+                       Text="{Binding PerformanceProfile, StringFormat=Performance profile: {0}}" />
+            <TextBlock Margin="0,12,0,0"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       Text="NLLB and XTTS are intended for personal, noncommercial use. Review their licenses before downloading or using the models." />
+        </StackPanel>
+    </Border>
+</UserControl>

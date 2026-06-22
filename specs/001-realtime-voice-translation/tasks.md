@@ -43,7 +43,7 @@
 - [ ] T027 Implement CUDA/VRAM inspection, balanced profile, low-memory profile and cleanup in `worker/voice_translator_worker/models/gpu_profiles.py`
 - [ ] T028 Implement per-language translation/synthesis preflight in `worker/voice_translator_worker/pipeline/preflight.py`
 - [ ] T029 Implement .NET model inventory/download progress client in `src/VoiceTranslator.Infrastructure.LocalWorker/Models/`
-- [ ] T030 Add WPF model/license/preflight screen in `src/VoiceTranslator.App/Views/ModelSetupView.xaml`
+- [x] T030 Add WPF model/license/preflight screen in `src/VoiceTranslator.App/Views/ModelSetupView.xaml`
 
 ## Phase 5: User Story 1 — Russian phrase translation
 
@@ -59,7 +59,7 @@
 - [x] T040 [US1] Implement worker process launch, health, restart and token creation in `src/VoiceTranslator.Infrastructure.LocalWorker/WorkerProcessManager.cs`
 - [x] T041 [US1] Implement WASAPI capture/playback and limiter in `src/VoiceTranslator.Infrastructure.Audio/`
 - [x] T042 [US1] Implement bounded phrase orchestration in `src/VoiceTranslator.Application/Orchestration/TranslationPipeline.cs`
-- [ ] T043 [US1] Implement WPF consent, target language, status and start/stop flow in `src/VoiceTranslator.App/`
+- [x] T043 [US1] Implement WPF consent, target language, status and start/stop flow in `src/VoiceTranslator.App/`
 - [ ] T044 [US1] Add RTX 3070 physical-output acceptance test in `tests/VoiceTranslator.WindowsE2ETests/PhysicalOutputTests.cs`
 
 ## Phase 6: User Story 2 — Languages, models and routes
