@@ -50,15 +50,15 @@
 - [ ] T031 [P] [US1] Write failing Russian ASR confidence and VAD tests in `worker/tests/test_asr.py`
 - [x] T032 [P] [US1] Write failing NLLB Russian-to-target tests in `worker/tests/test_translation.py`
 - [x] T033 [P] [US1] Write failing XTTS speaker-session cleanup tests in `worker/tests/test_synthesis.py`
-- [ ] T034 [P] [US1] Write failing WASAPI capture and limiter tests in `tests/VoiceTranslator.IntegrationTests/Audio/`
-- [ ] T035 [US1] Write failing end-to-end fake-worker pipeline test in `tests/VoiceTranslator.IntegrationTests/TranslationPipelineTests.cs`
+- [x] T034 [P] [US1] Write failing WASAPI capture and limiter tests in `tests/VoiceTranslator.IntegrationTests/Audio/`
+- [x] T035 [US1] Write failing end-to-end fake-worker pipeline test in `tests/VoiceTranslator.IntegrationTests/TranslationPipelineTests.cs`
 - [x] T036 [US1] Implement faster-whisper Russian ASR adapter in `worker/voice_translator_worker/pipeline/asr.py`
 - [x] T037 [US1] Implement CTranslate2 NLLB translator and language map in `worker/voice_translator_worker/pipeline/translation.py`
 - [x] T038 [US1] Implement ephemeral XTTS speaker session and synthesis in `worker/voice_translator_worker/pipeline/synthesis.py`
 - [x] T039 [US1] Implement `/v1/speaker-sessions` and `/v1/translate-phrase` in `worker/voice_translator_worker/api.py`
 - [x] T040 [US1] Implement worker process launch, health, restart and token creation in `src/VoiceTranslator.Infrastructure.LocalWorker/WorkerProcessManager.cs`
-- [ ] T041 [US1] Implement WASAPI capture/playback and limiter in `src/VoiceTranslator.Infrastructure.Audio/`
-- [ ] T042 [US1] Implement bounded phrase orchestration in `src/VoiceTranslator.Application/Orchestration/TranslationPipeline.cs`
+- [x] T041 [US1] Implement WASAPI capture/playback and limiter in `src/VoiceTranslator.Infrastructure.Audio/`
+- [x] T042 [US1] Implement bounded phrase orchestration in `src/VoiceTranslator.Application/Orchestration/TranslationPipeline.cs`
 - [ ] T043 [US1] Implement WPF consent, target language, status and start/stop flow in `src/VoiceTranslator.App/`
 - [ ] T044 [US1] Add RTX 3070 physical-output acceptance test in `tests/VoiceTranslator.WindowsE2ETests/PhysicalOutputTests.cs`
 
