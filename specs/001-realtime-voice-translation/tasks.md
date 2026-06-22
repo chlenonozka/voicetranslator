@@ -26,7 +26,7 @@
 ## Phase 3: Contracts and shared domain
 
 - [ ] T015 [P] Write failing worker authentication and OpenAPI tests in `worker/tests/test_auth.py` and `tests/VoiceTranslator.ContractTests/Worker/WorkerOpenApiTests.cs`
-- [ ] T016 [P] Write failing session-state tests in `tests/VoiceTranslator.UnitTests/Sessions/TranslationSessionTests.cs`
+- [x] T016 [P] Write failing session-state tests in `tests/VoiceTranslator.UnitTests/Sessions/TranslationSessionTests.cs`
 - [ ] T017 [P] Write failing model manifest/license tests in `tests/VoiceTranslator.UnitTests/Models/ModelManifestTests.cs`
 - [ ] T018 [P] Write failing 16-language mapping tests in `worker/tests/test_languages.py`
 - [ ] T019 Implement local session, worker, model, capability, and audio entities in `src/VoiceTranslator.Domain/`
