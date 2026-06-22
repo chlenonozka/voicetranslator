@@ -56,7 +56,7 @@
 - [x] T037 [US1] Implement CTranslate2 NLLB translator and language map in `worker/voice_translator_worker/pipeline/translation.py`
 - [x] T038 [US1] Implement ephemeral XTTS speaker session and synthesis in `worker/voice_translator_worker/pipeline/synthesis.py`
 - [x] T039 [US1] Implement `/v1/speaker-sessions` and `/v1/translate-phrase` in `worker/voice_translator_worker/api.py`
-- [ ] T040 [US1] Implement worker process launch, health, restart and token creation in `src/VoiceTranslator.Infrastructure.LocalWorker/WorkerProcessManager.cs`
+- [x] T040 [US1] Implement worker process launch, health, restart and token creation in `src/VoiceTranslator.Infrastructure.LocalWorker/WorkerProcessManager.cs`
 - [ ] T041 [US1] Implement WASAPI capture/playback and limiter in `src/VoiceTranslator.Infrastructure.Audio/`
 - [ ] T042 [US1] Implement bounded phrase orchestration in `src/VoiceTranslator.Application/Orchestration/TranslationPipeline.cs`
 - [ ] T043 [US1] Implement WPF consent, target language, status and start/stop flow in `src/VoiceTranslator.App/`

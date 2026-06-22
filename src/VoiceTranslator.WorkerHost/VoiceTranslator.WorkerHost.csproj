@@ -4,4 +4,9 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\VoiceTranslator.Application\VoiceTranslator.Application.csproj" />
+    <ProjectReference Include="..\VoiceTranslator.Infrastructure.LocalWorker\VoiceTranslator.Infrastructure.LocalWorker.csproj" />
+  </ItemGroup>
+
 </Project>

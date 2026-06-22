@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace VoiceTranslator.App;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private IHost? host;
 
