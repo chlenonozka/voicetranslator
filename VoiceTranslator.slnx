@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VoiceTranslator.App/VoiceTranslator.App.csproj" />
+    <Project Path="src/VoiceTranslator.Application/VoiceTranslator.Application.csproj" />
+    <Project Path="src/VoiceTranslator.Domain/VoiceTranslator.Domain.csproj" />
+    <Project Path="src/VoiceTranslator.Gateway/VoiceTranslator.Gateway.csproj" />
+    <Project Path="src/VoiceTranslator.Infrastructure.Audio/VoiceTranslator.Infrastructure.Audio.csproj" />
+    <Project Path="src/VoiceTranslator.Infrastructure.Cloud/VoiceTranslator.Infrastructure.Cloud.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VoiceTranslator.ContractTests/VoiceTranslator.ContractTests.csproj" />
+    <Project Path="tests/VoiceTranslator.IntegrationTests/VoiceTranslator.IntegrationTests.csproj" />
+    <Project Path="tests/VoiceTranslator.PerformanceTests/VoiceTranslator.PerformanceTests.csproj" />
+    <Project Path="tests/VoiceTranslator.Testing/VoiceTranslator.Testing.csproj" />
+    <Project Path="tests/VoiceTranslator.UnitTests/VoiceTranslator.UnitTests.csproj" />
+    <Project Path="tests/VoiceTranslator.WindowsE2ETests/VoiceTranslator.WindowsE2ETests.csproj" />
+  </Folder>
+</Solution>

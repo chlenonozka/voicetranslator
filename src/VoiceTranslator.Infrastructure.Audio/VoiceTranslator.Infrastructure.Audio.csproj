@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VoiceTranslator.Application\VoiceTranslator.Application.csproj" />
+    <ProjectReference Include="..\VoiceTranslator.Domain\VoiceTranslator.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,30 @@
+# Local toolchains and secrets
+.dotnet/
+.env
+.env.*
+!.env.example
+
+# .NET build output
+bin/
+obj/
+artifacts/
+TestResults/
+coverage/
+packages/
+*.user
+*.suo
+
+# IDE and OS files
+.vs/
+.vscode/
+.idea/
+.worktrees/
+Thumbs.db
+.DS_Store
+*.tmp
+*.swp
+
+# Local application data
+appsettings.Local.json
+*.local.json
+*.user.config
