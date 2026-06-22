@@ -52,7 +52,7 @@
 - [ ] T033 [P] [US1] Write failing XTTS speaker-session cleanup tests in `worker/tests/test_synthesis.py`
 - [ ] T034 [P] [US1] Write failing WASAPI capture and limiter tests in `tests/VoiceTranslator.IntegrationTests/Audio/`
 - [ ] T035 [US1] Write failing end-to-end fake-worker pipeline test in `tests/VoiceTranslator.IntegrationTests/TranslationPipelineTests.cs`
-- [ ] T036 [US1] Implement faster-whisper Russian ASR adapter in `worker/voice_translator_worker/pipeline/asr.py`
+- [x] T036 [US1] Implement faster-whisper Russian ASR adapter in `worker/voice_translator_worker/pipeline/asr.py`
 - [ ] T037 [US1] Implement CTranslate2 NLLB translator and language map in `worker/voice_translator_worker/pipeline/translation.py`
 - [ ] T038 [US1] Implement ephemeral XTTS speaker session and synthesis in `worker/voice_translator_worker/pipeline/synthesis.py`
 - [ ] T039 [US1] Implement `/v1/speaker-sessions` and `/v1/translate-phrase` in `worker/voice_translator_worker/api.py`

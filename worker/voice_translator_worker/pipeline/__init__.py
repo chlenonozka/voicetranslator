@@ -1,0 +1,1 @@
+"""Local speech translation pipeline."""
