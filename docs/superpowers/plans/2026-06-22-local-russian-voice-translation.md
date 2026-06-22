@@ -173,7 +173,7 @@ ml = [
   "ctranslate2>=4.6,<5",
   "transformers>=4.57,<5",
   "sentencepiece>=0.2,<0.3",
-  "huggingface-hub>=1.3,<2",
+  "huggingface-hub>=0.34,<1",
   "coqui-tts>=0.27,<0.28",
 ]
 
