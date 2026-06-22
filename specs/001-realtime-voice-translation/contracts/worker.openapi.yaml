@@ -1,0 +1,74 @@
+openapi: 3.1.0
+info:
+  title: Local Voice Translation Worker
+  version: 0.2.0
+security:
+  - workerToken: []
+paths:
+  /v1/health:
+    get:
+      responses:
+        "200":
+          description: Worker and CUDA status
+  /v1/preflight:
+    post:
+      responses:
+        "200":
+          description: Hardware, model, and language capability report
+  /v1/speaker-sessions:
+    post:
+      summary: Create ephemeral current-speaker conditioning
+      requestBody:
+        required: true
+        content:
+          audio/wav:
+            schema: { type: string, contentEncoding: binary }
+      responses:
+        "201": { description: Speaker session created }
+  /v1/speaker-sessions/{sessionId}:
+    delete:
+      summary: Clear reference PCM and conditioning
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204": { description: Cleared or already absent }
+  /v1/translate-phrase:
+    post:
+      summary: Recognize Russian PCM, translate, and synthesize one phrase
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [sessionId, targetLanguage, audio]
+              properties:
+                sessionId: { type: string, format: uuid }
+                targetLanguage: { type: string }
+                audio: { type: string, contentEncoding: binary }
+      responses:
+        "200":
+          description: Synthesized PCM plus privacy-safe timing headers
+          content:
+            audio/wav:
+              schema: { type: string, contentEncoding: binary }
+        "422": { description: Low confidence or invalid language }
+        "507": { description: GPU memory profile exhausted }
+  /v1/cancel/{requestId}:
+    post:
+      parameters:
+        - in: path
+          name: requestId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "202": { description: Cancellation requested }
+components:
+  securitySchemes:
+    workerToken:
+      type: apiKey
+      in: header
+      name: X-Worker-Token
