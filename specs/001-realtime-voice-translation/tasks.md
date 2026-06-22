@@ -15,10 +15,10 @@
 
 ## Phase 2: Rebase scaffold for local worker
 
-- [ ] T008 Remove Azure/MSAL/storage package references from `Directory.Packages.props` and source project files
-- [ ] T009 Rename `src/VoiceTranslator.Infrastructure.Cloud/` to `src/VoiceTranslator.Infrastructure.LocalWorker/`
-- [ ] T010 Replace `src/VoiceTranslator.Gateway/` with `src/VoiceTranslator.WorkerHost/`
-- [ ] T011 Add Python, uv, model cache, and local worker patterns to `.gitignore`
+- [x] T008 Remove Azure/MSAL/storage package references from `Directory.Packages.props` and source project files
+- [x] T009 Rename `src/VoiceTranslator.Infrastructure.Cloud/` to `src/VoiceTranslator.Infrastructure.LocalWorker/`
+- [x] T010 Replace `src/VoiceTranslator.Gateway/` with `src/VoiceTranslator.WorkerHost/`
+- [x] T011 Add Python, uv, model cache, and local worker patterns to `.gitignore`
 - [ ] T012 Create Python 3.11 project and locked dependency groups in `worker/pyproject.toml`
 - [ ] T013 Add worker and model manifest directories to `VoiceTranslator.slnx`
 - [ ] T014 Update local setup, licensing, model download, and run commands in `README.md`

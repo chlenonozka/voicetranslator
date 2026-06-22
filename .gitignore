@@ -28,3 +28,14 @@ Thumbs.db
 appsettings.Local.json
 *.local.json
 *.user.config
+
+# Python worker and model cache
+.venv/
+worker/.venv/
+worker/.pytest_cache/
+worker/**/__pycache__/
+*.pyc
+.python-version
+models/cache/
+models/downloads/
+worker-data/

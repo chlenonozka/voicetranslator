@@ -13,7 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\VoiceTranslator.Application\VoiceTranslator.Application.csproj" />
     <ProjectReference Include="..\VoiceTranslator.Infrastructure.Audio\VoiceTranslator.Infrastructure.Audio.csproj" />
-    <ProjectReference Include="..\VoiceTranslator.Infrastructure.Cloud\VoiceTranslator.Infrastructure.Cloud.csproj" />
+    <ProjectReference Include="..\VoiceTranslator.Infrastructure.LocalWorker\VoiceTranslator.Infrastructure.LocalWorker.csproj" />
   </ItemGroup>
 
 </Project>
