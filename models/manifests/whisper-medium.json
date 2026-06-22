@@ -1,0 +1,8 @@
+{
+  "id": "whisper-medium",
+  "repo_id": "Systran/faster-whisper-medium",
+  "revision": "08e178d48790749d25932bbc082711ddcfdfbc4f",
+  "license": "MIT",
+  "commercial_use_allowed": true,
+  "files": []
+}

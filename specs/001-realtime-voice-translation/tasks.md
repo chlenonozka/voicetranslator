@@ -38,7 +38,7 @@
 
 - [ ] T023 [P] Write failing manifest hash, pinned revision, license acknowledgement, and offline tests in `worker/tests/test_model_manager.py`
 - [ ] T024 [P] Write failing CUDA profile and OOM downgrade tests in `worker/tests/test_gpu_profiles.py`
-- [ ] T025 Create pinned manifests for Whisper medium/small, NLLB and XTTS in `models/manifests/`
+- [x] T025 Create pinned manifests for Whisper medium/small, NLLB and XTTS in `models/manifests/`
 - [ ] T026 Implement Hugging Face `snapshot_download` and hash verification in `worker/voice_translator_worker/models/model_manager.py`
 - [ ] T027 Implement CUDA/VRAM inspection, balanced profile, low-memory profile and cleanup in `worker/voice_translator_worker/models/gpu_profiles.py`
 - [ ] T028 Implement per-language translation/synthesis preflight in `worker/voice_translator_worker/pipeline/preflight.py`

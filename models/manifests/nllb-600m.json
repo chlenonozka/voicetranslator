@@ -1,0 +1,8 @@
+{
+  "id": "nllb-600m",
+  "repo_id": "facebook/nllb-200-distilled-600M",
+  "revision": "f8d333a098d19b4fd9a8b18f94170487ad3f821d",
+  "license": "CC-BY-NC-4.0",
+  "commercial_use_allowed": false,
+  "files": []
+}
