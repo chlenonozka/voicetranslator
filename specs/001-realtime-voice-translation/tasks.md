@@ -27,10 +27,10 @@
 
 - [x] T015 [P] Write failing worker authentication and OpenAPI tests in `worker/tests/test_auth.py` and `tests/VoiceTranslator.ContractTests/Worker/WorkerOpenApiTests.cs`
 - [x] T016 [P] Write failing session-state tests in `tests/VoiceTranslator.UnitTests/Sessions/TranslationSessionTests.cs`
-- [ ] T017 [P] Write failing model manifest/license tests in `tests/VoiceTranslator.UnitTests/Models/ModelManifestTests.cs`
-- [ ] T018 [P] Write failing 16-language mapping tests in `worker/tests/test_languages.py`
-- [ ] T019 Implement local session, worker, model, capability, and audio entities in `src/VoiceTranslator.Domain/`
-- [ ] T020 Implement application ports for worker lifecycle, model management, phrase translation, and output in `src/VoiceTranslator.Application/Ports/`
+- [x] T017 [P] Write failing model manifest/license tests in `tests/VoiceTranslator.UnitTests/Models/ModelManifestTests.cs`
+- [x] T018 [P] Write failing 16-language mapping tests in `worker/tests/test_languages.py`
+- [x] T019 Implement local session, worker, model, capability, and audio entities in `src/VoiceTranslator.Domain/`
+- [x] T020 Implement application ports for worker lifecycle, model management, phrase translation, and output in `src/VoiceTranslator.Application/Ports/`
 - [x] T021 Implement FastAPI token dependency, lifespan cleanup, health and cancellation endpoints in `worker/voice_translator_worker/`
 - [x] T022 Implement typed .NET worker client models and token header handler in `src/VoiceTranslator.Infrastructure.LocalWorker/`
 
@@ -41,13 +41,13 @@
 - [x] T025 Create pinned manifests for Whisper medium/small, NLLB and XTTS in `models/manifests/`
 - [x] T026 Implement Hugging Face `snapshot_download` and hash verification in `worker/voice_translator_worker/models/model_manager.py`
 - [x] T027 Implement CUDA/VRAM inspection, balanced profile, low-memory profile and cleanup in `worker/voice_translator_worker/models/gpu_profiles.py`
-- [ ] T028 Implement per-language translation/synthesis preflight in `worker/voice_translator_worker/pipeline/preflight.py`
-- [ ] T029 Implement .NET model inventory/download progress client in `src/VoiceTranslator.Infrastructure.LocalWorker/Models/`
+- [x] T028 Implement per-language translation/synthesis preflight in `worker/voice_translator_worker/pipeline/preflight.py`
+- [x] T029 Implement .NET model inventory/download progress client in `src/VoiceTranslator.Infrastructure.LocalWorker/Models/`
 - [x] T030 Add WPF model/license/preflight screen in `src/VoiceTranslator.App/Views/ModelSetupView.xaml`
 
 ## Phase 5: User Story 1 — Russian phrase translation
 
-- [ ] T031 [P] [US1] Write failing Russian ASR confidence and VAD tests in `worker/tests/test_asr.py`
+- [x] T031 [P] [US1] Write failing Russian ASR confidence and VAD tests in `worker/tests/test_asr.py`
 - [x] T032 [P] [US1] Write failing NLLB Russian-to-target tests in `worker/tests/test_translation.py`
 - [x] T033 [P] [US1] Write failing XTTS speaker-session cleanup tests in `worker/tests/test_synthesis.py`
 - [x] T034 [P] [US1] Write failing WASAPI capture and limiter tests in `tests/VoiceTranslator.IntegrationTests/Audio/`
@@ -64,12 +64,12 @@
 
 ## Phase 6: User Story 2 — Languages, models and routes
 
-- [ ] T045 [P] [US2] Write failing model download UI and catalog tests in `tests/VoiceTranslator.UnitTests/Models/`
-- [ ] T046 [P] [US2] Write failing WASAPI device-change and virtual-cable tests in `tests/VoiceTranslator.IntegrationTests/Audio/`
-- [ ] T047 [US2] Implement capability catalog persistence without speech content in `src/VoiceTranslator.Infrastructure.LocalWorker/Models/CapabilityCatalogStore.cs`
-- [ ] T048 [US2] Implement device enumeration and virtual/dual output router in `src/VoiceTranslator.Infrastructure.Audio/Routing/`
-- [ ] T049 [US2] Implement channel test and feedback warning in `src/VoiceTranslator.Application/Orchestration/OutputChannelTestService.cs`
-- [ ] T050 [US2] Complete model/device/language/output controls in `src/VoiceTranslator.App/Views/MainWindow.xaml`
+- [x] T045 [P] [US2] Write failing model download UI and catalog tests in `tests/VoiceTranslator.UnitTests/Models/`
+- [x] T046 [P] [US2] Write failing WASAPI device-change and virtual-cable tests in `tests/VoiceTranslator.IntegrationTests/Audio/`
+- [x] T047 [US2] Implement capability catalog persistence without speech content in `src/VoiceTranslator.Infrastructure.LocalWorker/Models/CapabilityCatalogStore.cs`
+- [x] T048 [US2] Implement device enumeration and virtual/dual output router in `src/VoiceTranslator.Infrastructure.Audio/Routing/`
+- [x] T049 [US2] Implement channel test and feedback warning in `src/VoiceTranslator.Application/Orchestration/OutputChannelTestService.cs`
+- [x] T050 [US2] Complete model/device/language/output controls in `src/VoiceTranslator.App/Views/MainWindow.xaml`
 - [ ] T051 [US2] Add all-16-language and output routing E2E tests in `tests/VoiceTranslator.WindowsE2ETests/`
 
 ## Phase 7: User Story 3 — Recovery and privacy
@@ -79,8 +79,8 @@
 - [x] T054 [P] [US3] Write no-speech-persistence tests in `worker/tests/test_privacy.py` and `tests/VoiceTranslator.IntegrationTests/Privacy/`
 - [x] T055 [US3] Implement worker failure coordinator and two-second shutdown in `src/VoiceTranslator.Application/Orchestration/SessionFailureCoordinator.cs`
 - [x] T056 [US3] Implement OOM cleanup and one low-memory retry in `worker/voice_translator_worker/pipeline/recovery.py`
-- [ ] T057 [US3] Implement device-loss handling and stale-buffer disposal in `src/VoiceTranslator.Infrastructure.Audio/`
-- [ ] T058 [US3] Add accessible error and recovery UI in `src/VoiceTranslator.App/`
+- [x] T057 [US3] Implement device-loss handling and stale-buffer disposal in `src/VoiceTranslator.Infrastructure.Audio/`
+- [x] T058 [US3] Add accessible error and recovery UI in `src/VoiceTranslator.App/`
 
 ## Phase 8: Validation and packaging
 

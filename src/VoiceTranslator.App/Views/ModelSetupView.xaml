@@ -15,6 +15,10 @@
                        Text="{Binding ModelPreflightState}" />
             <TextBlock Margin="0,8,0,0"
                        Text="{Binding PerformanceProfile, StringFormat=Performance profile: {0}}" />
+            <TextBlock Margin="0,8,0,0"
+                       AutomationProperties.Name="Model inventory summary"
+                       Text="{Binding ModelInventorySummary}"
+                       TextWrapping="Wrap" />
             <TextBlock Margin="0,12,0,0"
                        FontWeight="SemiBold"
                        TextWrapping="Wrap"

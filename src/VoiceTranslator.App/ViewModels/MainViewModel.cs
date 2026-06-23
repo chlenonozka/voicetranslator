@@ -1,8 +1,11 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using VoiceTranslator.Domain.Audio;
 using VoiceTranslator.Domain.Languages;
 using VoiceTranslator.Domain.Sessions;
+using VoiceTranslator.Application.Ports;
+using VoiceTranslator.Infrastructure.Audio.Devices;
 
 namespace VoiceTranslator.App.ViewModels;
 
@@ -12,13 +15,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly RelayCommand stopCommand;
     private readonly RelayCommand newSessionCommand;
     private TargetLanguage? selectedTargetLanguage;
-    private string? selectedMicrophone;
-    private string? selectedPhysicalOutput;
+    private AudioDeviceInfo? selectedMicrophone;
+    private AudioDeviceInfo? selectedPhysicalOutput;
+    private AudioDeviceInfo? selectedVirtualOutput;
+    private OutputMode selectedOutputMode = OutputMode.Physical;
+    private IReadOnlyList<TargetLanguage> targetLanguages =
+        TargetLanguage.All;
+    private IReadOnlyList<AudioDeviceInfo> microphones = [];
+    private IReadOnlyList<AudioDeviceInfo> physicalOutputs = [];
+    private IReadOnlyList<AudioDeviceInfo> virtualOutputs = [];
     private bool speakerConsentAccepted;
+    private bool outputChannelTestPassed;
     private bool isModelPreflightPassed;
     private bool isWorkerReady;
     private SessionState state = SessionState.Draft;
     private string performanceProfile = "Unavailable";
+    private string modelInventorySummary = "Model inventory unavailable";
+    private string? outputWarning;
+    private string? failureMessage;
 
     public MainViewModel()
     {
@@ -31,12 +45,24 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public IReadOnlyList<TargetLanguage> TargetLanguages { get; } =
-        TargetLanguage.All;
+    public event EventHandler? StartRequested;
 
-    public IReadOnlyList<string> Microphones { get; } = [];
+    public event EventHandler? StopRequested;
 
-    public IReadOnlyList<string> PhysicalOutputs { get; } = [];
+    public IReadOnlyList<TargetLanguage> TargetLanguages => targetLanguages;
+
+    public IReadOnlyList<AudioDeviceInfo> Microphones => microphones;
+
+    public IReadOnlyList<AudioDeviceInfo> PhysicalOutputs => physicalOutputs;
+
+    public IReadOnlyList<AudioDeviceInfo> VirtualOutputs => virtualOutputs;
+
+    public IReadOnlyList<OutputMode> OutputModes { get; } =
+    [
+        OutputMode.Physical,
+        OutputMode.VirtualCable,
+        OutputMode.Both,
+    ];
 
     public TargetLanguage? SelectedTargetLanguage
     {
@@ -44,22 +70,40 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetPrerequisite(ref selectedTargetLanguage, value);
     }
 
-    public string? SelectedMicrophone
+    public AudioDeviceInfo? SelectedMicrophone
     {
         get => selectedMicrophone;
         set => SetPrerequisite(ref selectedMicrophone, value);
     }
 
-    public string? SelectedPhysicalOutput
+    public AudioDeviceInfo? SelectedPhysicalOutput
     {
         get => selectedPhysicalOutput;
         set => SetPrerequisite(ref selectedPhysicalOutput, value);
+    }
+
+    public AudioDeviceInfo? SelectedVirtualOutput
+    {
+        get => selectedVirtualOutput;
+        set => SetPrerequisite(ref selectedVirtualOutput, value);
+    }
+
+    public OutputMode SelectedOutputMode
+    {
+        get => selectedOutputMode;
+        set => SetPrerequisite(ref selectedOutputMode, value);
     }
 
     public bool SpeakerConsentAccepted
     {
         get => speakerConsentAccepted;
         set => SetPrerequisite(ref speakerConsentAccepted, value);
+    }
+
+    public bool OutputChannelTestPassed
+    {
+        get => outputChannelTestPassed;
+        set => SetPrerequisite(ref outputChannelTestPassed, value);
     }
 
     public bool IsModelPreflightPassed
@@ -108,6 +152,37 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public string ModelInventorySummary
+    {
+        get => modelInventorySummary;
+        set
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            if (modelInventorySummary == value)
+            {
+                return;
+            }
+
+            modelInventorySummary = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? OutputWarning
+    {
+        get => outputWarning;
+        private set
+        {
+            if (outputWarning == value)
+            {
+                return;
+            }
+
+            outputWarning = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string ModelPreflightState =>
         IsModelPreflightPassed ? "Models verified" : "Models require preflight";
 
@@ -115,6 +190,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         get
         {
+            if (State == SessionState.Faulted)
+            {
+                return failureMessage ?? "The local worker failed.";
+            }
+
             if (State == SessionState.Listening)
             {
                 return "Listening for Russian speech.";
@@ -140,14 +220,33 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 return "Required models have not passed preflight.";
             }
 
-            if (string.IsNullOrWhiteSpace(SelectedMicrophone))
+            if (SelectedMicrophone is null)
             {
                 return "Select a microphone.";
             }
 
-            if (string.IsNullOrWhiteSpace(SelectedPhysicalOutput))
+            if (
+                SelectedOutputMode is OutputMode.Physical or OutputMode.Both
+                && SelectedPhysicalOutput is null
+            )
             {
                 return "Select a physical output device.";
+            }
+
+            if (
+                SelectedOutputMode is OutputMode.VirtualCable or OutputMode.Both
+                && SelectedVirtualOutput is null
+            )
+            {
+                return "Select a virtual cable output device.";
+            }
+
+            if (
+                SelectedOutputMode is OutputMode.VirtualCable or OutputMode.Both
+                && !OutputChannelTestPassed
+            )
+            {
+                return "Run the output channel test before using virtual output.";
             }
 
             if (SelectedTargetLanguage is null)
@@ -170,12 +269,105 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public ICommand NewSessionCommand => newSessionCommand;
 
+    public void UpdateDevices(
+        IReadOnlyList<AudioDeviceInfo> captureDevices,
+        IReadOnlyList<AudioDeviceInfo> renderDevices)
+    {
+        ArgumentNullException.ThrowIfNull(captureDevices);
+        ArgumentNullException.ThrowIfNull(renderDevices);
+
+        microphones = captureDevices;
+        physicalOutputs = renderDevices
+            .Where(device => !device.IsVirtual)
+            .ToArray();
+        virtualOutputs = renderDevices
+            .Where(device => device.IsVirtual)
+            .ToArray();
+        OnPropertyChanged(nameof(Microphones));
+        OnPropertyChanged(nameof(PhysicalOutputs));
+        OnPropertyChanged(nameof(VirtualOutputs));
+
+        if (
+            SelectedMicrophone is not null
+            && !microphones.Contains(SelectedMicrophone)
+        )
+        {
+            SelectedMicrophone = null;
+        }
+        if (
+            SelectedPhysicalOutput is not null
+            && !physicalOutputs.Contains(SelectedPhysicalOutput)
+        )
+        {
+            SelectedPhysicalOutput = null;
+        }
+        if (
+            SelectedVirtualOutput is not null
+            && !virtualOutputs.Contains(SelectedVirtualOutput)
+        )
+        {
+            SelectedVirtualOutput = null;
+        }
+    }
+
+    public void ApplyPreflight(WorkerPreflightReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+
+        failureMessage = null;
+        var availableCodes = report.AvailableLanguages.ToHashSet(
+            StringComparer.Ordinal);
+        targetLanguages = TargetLanguage.All
+            .Where(language => availableCodes.Contains(language.Code))
+            .ToArray();
+        OnPropertyChanged(nameof(TargetLanguages));
+        if (
+            SelectedTargetLanguage is not null
+            && !targetLanguages.Contains(SelectedTargetLanguage)
+        )
+        {
+            SelectedTargetLanguage = null;
+        }
+        IsWorkerReady = true;
+        PerformanceProfile = report.PerformanceProfile;
+        ModelInventorySummary = report.MissingModels.Count == 0
+            ? $"All models verified. {targetLanguages.Count} languages available."
+            : "Missing models: " + string.Join(", ", report.MissingModels);
+        IsModelPreflightPassed = report.Ready;
+    }
+
+    public void ApplyOutputChannelTest(OutputChannelTestResult result)
+    {
+        OutputChannelTestPassed = result.Passed;
+        OutputWarning = result.Warning;
+    }
+
+    public void ReportWorkerFailure(string message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+
+        failureMessage = message;
+        IsWorkerReady = false;
+        State = SessionState.Faulted;
+    }
+
     private bool CanStart()
     {
         return State == SessionState.Ready
             && IsModelPreflightPassed
-            && !string.IsNullOrWhiteSpace(SelectedMicrophone)
-            && !string.IsNullOrWhiteSpace(SelectedPhysicalOutput)
+            && SelectedMicrophone is not null
+            && (
+                SelectedOutputMode == OutputMode.VirtualCable
+                || SelectedPhysicalOutput is not null
+            )
+            && (
+                SelectedOutputMode == OutputMode.Physical
+                || SelectedVirtualOutput is not null
+            )
+            && (
+                SelectedOutputMode == OutputMode.Physical
+                || OutputChannelTestPassed
+            )
             && SelectedTargetLanguage is not null
             && SpeakerConsentAccepted
             && IsWorkerReady;
@@ -189,6 +381,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         State = SessionState.Listening;
+        StartRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void Stop()
@@ -200,6 +393,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         SpeakerConsentAccepted = false;
         State = SessionState.Stopped;
+        StopRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void BeginNewSession()
@@ -250,8 +444,19 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool HasAllPrerequisites()
     {
         return IsModelPreflightPassed
-            && !string.IsNullOrWhiteSpace(SelectedMicrophone)
-            && !string.IsNullOrWhiteSpace(SelectedPhysicalOutput)
+            && SelectedMicrophone is not null
+            && (
+                SelectedOutputMode == OutputMode.VirtualCable
+                || SelectedPhysicalOutput is not null
+            )
+            && (
+                SelectedOutputMode == OutputMode.Physical
+                || SelectedVirtualOutput is not null
+            )
+            && (
+                SelectedOutputMode == OutputMode.Physical
+                || OutputChannelTestPassed
+            )
             && SelectedTargetLanguage is not null
             && SpeakerConsentAccepted
             && IsWorkerReady;

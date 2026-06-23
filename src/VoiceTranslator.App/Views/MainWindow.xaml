@@ -25,7 +25,7 @@
                            Text="Russian voice translator" />
                 <TextBlock Margin="0,6,0,0"
                            TextWrapping="Wrap"
-                           Text="Translate Russian speech locally and play the translated voice through a physical output." />
+                       Text="Translate Russian speech locally and play the translated voice through a physical output." />
             </StackPanel>
 
             <views:ModelSetupView Grid.Row="1"
@@ -38,6 +38,8 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -63,6 +65,7 @@
                     <ComboBox Margin="0,6,0,0"
                               MinHeight="32"
                               AutomationProperties.Name="Microphone"
+                              DisplayMemberPath="Name"
                               ItemsSource="{Binding Microphones}"
                               SelectedItem="{Binding SelectedMicrophone}"
                               Text="No microphones available" />
@@ -76,12 +79,43 @@
                     <ComboBox Margin="0,6,0,0"
                               MinHeight="32"
                               AutomationProperties.Name="Physical output device"
+                              DisplayMemberPath="Name"
                               ItemsSource="{Binding PhysicalOutputs}"
                               SelectedItem="{Binding SelectedPhysicalOutput}"
                               Text="No physical outputs available" />
                 </StackPanel>
 
-                <CheckBox Grid.Row="3"
+                <StackPanel Grid.Row="3"
+                            Grid.ColumnSpan="2"
+                            Margin="0,14,0,0">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Output mode" />
+                    <ComboBox Margin="0,6,0,0"
+                              MinHeight="32"
+                              AutomationProperties.Name="Output mode"
+                              ItemsSource="{Binding OutputModes}"
+                              SelectedItem="{Binding SelectedOutputMode}" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="4"
+                            Grid.ColumnSpan="2"
+                            Margin="0,14,0,0">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Virtual cable output" />
+                    <ComboBox Margin="0,6,0,0"
+                              MinHeight="32"
+                              AutomationProperties.Name="Virtual cable output device"
+                              DisplayMemberPath="Name"
+                              ItemsSource="{Binding VirtualOutputs}"
+                              SelectedItem="{Binding SelectedVirtualOutput}"
+                              Text="No virtual outputs available" />
+                    <TextBlock Margin="0,6,0,0"
+                               AutomationProperties.Name="Output warning"
+                               Text="{Binding OutputWarning}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+
+                <CheckBox Grid.Row="5"
                           Grid.ColumnSpan="2"
                           Margin="0,18,0,0"
                           Padding="0,4"

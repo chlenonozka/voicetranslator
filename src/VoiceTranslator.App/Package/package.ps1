@@ -37,13 +37,15 @@ Invoke-DotNet @(
     "restore",
     (Join-Path $workspace "src\VoiceTranslator.App"),
     "-r",
-    $Runtime
+    $Runtime,
+    "-p:NuGetAudit=false"
 )
 Invoke-DotNet @(
     "restore",
     (Join-Path $workspace "src\VoiceTranslator.WorkerHost"),
     "-r",
-    $Runtime
+    $Runtime,
+    "-p:NuGetAudit=false"
 )
 
 Invoke-DotNet @(
@@ -76,6 +78,7 @@ Invoke-DotNet @(
 $workerOutput = Join-Path $resolvedOutput "worker"
 New-Item -ItemType Directory -Force -Path $workerOutput | Out-Null
 Copy-Item -Path @(
+    (Join-Path $workspace "worker\bootstrap.ps1"),
     (Join-Path $workspace "worker\pyproject.toml"),
     (Join-Path $workspace "worker\uv.lock")
 ) -Destination $workerOutput

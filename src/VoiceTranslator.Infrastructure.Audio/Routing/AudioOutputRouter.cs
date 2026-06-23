@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using VoiceTranslator.Domain.Audio;
 
 namespace VoiceTranslator.Infrastructure.Audio.Routing;
 
@@ -38,15 +39,18 @@ public sealed class AudioOutputRouter : IAsyncDisposable
     private readonly ConcurrentQueue<OutputSinkFailure> failures = [];
     private readonly OutputLane physical;
     private readonly OutputLane virtualOutput;
+    private readonly OutputMode mode;
     private int stopped;
 
     public AudioOutputRouter(
         ISynthesizedAudioSink physicalSink,
-        ISynthesizedAudioSink virtualSink)
+        ISynthesizedAudioSink virtualSink,
+        OutputMode mode = OutputMode.Both)
     {
         ArgumentNullException.ThrowIfNull(physicalSink);
         ArgumentNullException.ThrowIfNull(virtualSink);
 
+        this.mode = mode;
         physical = new OutputLane(
             "physical",
             physicalSink,
@@ -67,8 +71,14 @@ public sealed class AudioOutputRouter : IAsyncDisposable
             Volatile.Read(ref stopped) != 0,
             this);
 
-        physical.Enqueue(payload);
-        virtualOutput.Enqueue(payload);
+        if (mode is OutputMode.Physical or OutputMode.Both)
+        {
+            physical.Enqueue(payload);
+        }
+        if (mode is OutputMode.VirtualCable or OutputMode.Both)
+        {
+            virtualOutput.Enqueue(payload);
+        }
     }
 
     public async Task StopAsync()

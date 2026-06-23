@@ -1,14 +1,18 @@
 import shutil
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
 from voice_translator_worker.models.model_manager import (
     ModelManager,
     ModelManifest,
 )
+from voice_translator_worker.models.gpu_profiles import CudaReport, GpuProfile
 from voice_translator_worker.pipeline.asr import Recognition
 from voice_translator_worker.runtime import (
     LoadedModelSet,
     RuntimeConfig,
+    create_runtime_app,
     create_runtime_pipeline,
 )
 
@@ -93,6 +97,48 @@ def test_default_composition_rejects_corrupted_installed_model(
     )
 
     assert pipeline is None
+
+
+def test_runtime_preflight_exposes_languages_when_pipeline_is_available(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config = create_verified_config(tmp_path)
+    monkeypatch.setattr(
+        RuntimeConfig,
+        "from_environment",
+        staticmethod(lambda: config),
+    )
+    monkeypatch.setattr(
+        "voice_translator_worker.runtime._inspect_runtime_cuda",
+        lambda: CudaReport(
+            available=True,
+            device_name="RTX 3070",
+            total_bytes=8 * 1024**3,
+            free_bytes=6 * 1024**3,
+            profile=GpuProfile(
+                "balanced",
+                "medium",
+                "int8",
+                "int8_float16",
+            ),
+        ),
+    )
+    client = TestClient(
+        create_runtime_app(
+            "token",
+            pipeline_factory=lambda: object(),
+        )
+    )
+
+    response = client.post(
+        "/v1/preflight",
+        headers={"X-Worker-Token": "token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ready"] is True
+    assert len(response.json()["availableLanguages"]) == 16
 
 
 def create_verified_config(tmp_path: Path) -> RuntimeConfig:

@@ -8,7 +8,18 @@ public sealed class AudioAvailableEventArgs(byte[] audio) : EventArgs
     public byte[] Audio { get; } = audio;
 }
 
-public sealed class WasapiMicrophoneCapture : IDisposable
+public interface IAudioCaptureSource : IDisposable
+{
+    WaveFormat WaveFormat { get; }
+
+    event EventHandler<AudioAvailableEventArgs>? AudioAvailable;
+
+    void StartCapture();
+
+    void StopCapture();
+}
+
+public sealed class WasapiMicrophoneCapture : IAudioCaptureSource
 {
     private readonly IWaveIn capture;
 
@@ -30,6 +41,10 @@ public sealed class WasapiMicrophoneCapture : IDisposable
     public void Start() => capture.StartRecording();
 
     public void Stop() => capture.StopRecording();
+
+    void IAudioCaptureSource.StartCapture() => Start();
+
+    void IAudioCaptureSource.StopCapture() => Stop();
 
     public void Dispose()
     {

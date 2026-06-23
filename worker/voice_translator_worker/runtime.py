@@ -14,6 +14,7 @@ from .models.gpu_profiles import CudaReport, GpuProfile, inspect_cuda
 from .models.model_manager import ModelManager, ProfileModelResidency
 from .pipeline.preflight import PreflightService
 from .pipeline.asr import RussianAsr
+from .pipeline.languages import TARGET_LANGUAGES
 from .pipeline.service import (
     PhrasePipeline,
     PhraseRecognizer,
@@ -315,6 +316,10 @@ def create_runtime_app(
     preflight = PreflightService(
         model_inventory=ModelManager(config.model_root),
         cuda_inspector=_inspect_runtime_cuda,
+        language_probe=lambda target_code: (
+            pipeline is not None
+            and target_code in TARGET_LANGUAGES
+        ),
     )
     return create_app(
         launch_token,

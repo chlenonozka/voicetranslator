@@ -18,6 +18,26 @@ dependencies = [
 [project.scripts]
 voice-translator-models = "voice_translator_worker.models.download:main"
 
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+  { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+]
+torchaudio = [
+  { index = "pytorch-cu130", marker = "sys_platform == 'win32' or sys_platform == 'linux'" },
+  { index = "pytorch-cpu", marker = "sys_platform == 'darwin'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [project.optional-dependencies]
 test = [
   "pytest>=9,<10",

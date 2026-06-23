@@ -1,10 +1,14 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using VoiceTranslator.Application.Ports;
+using VoiceTranslator.Infrastructure.Audio.Routing;
 
 namespace VoiceTranslator.Infrastructure.Audio.Playback;
 
-public sealed class WasapiPlaybackSink : IAudioPlaybackSink, IDisposable
+public sealed class WasapiPlaybackSink :
+    IAudioPlaybackSink,
+    ISynthesizedAudioSink,
+    IDisposable
 {
     private readonly IWavePlayer output;
     private readonly BufferedWaveProvider buffer;
@@ -51,6 +55,15 @@ public sealed class WasapiPlaybackSink : IAudioPlaybackSink, IDisposable
     }
 
     public void StopPlayback() => Stop();
+
+    public ValueTask PlayAsync(
+        SynthesizedPcmPayload payload,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Play(payload.Pcm.ToArray());
+        return ValueTask.CompletedTask;
+    }
 
     public void Dispose()
     {

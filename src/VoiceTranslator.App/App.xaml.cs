@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using VoiceTranslator.App.ViewModels;
 using VoiceTranslator.App.Views;
+using VoiceTranslator.App.Services;
 
 namespace VoiceTranslator.App;
 
@@ -17,11 +18,13 @@ public partial class App : System.Windows.Application
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(e.Args);
         builder.Services.AddSingleton<MainViewModel>();
         builder.Services.AddSingleton<MainWindow>();
+        builder.Services.AddSingleton<DesktopRuntimeService>();
+        builder.Services.AddHostedService(
+            services => services.GetRequiredService<DesktopRuntimeService>());
 
         host = builder.Build();
-        await host.StartAsync();
-
         host.Services.GetRequiredService<MainWindow>().Show();
+        await host.StartAsync();
     }
 
     protected override async void OnExit(ExitEventArgs e)
@@ -29,7 +32,14 @@ public partial class App : System.Windows.Application
         if (host is not null)
         {
             await host.StopAsync();
-            host.Dispose();
+            if (host is IAsyncDisposable asyncDisposable)
+            {
+                await asyncDisposable.DisposeAsync();
+            }
+            else
+            {
+                host.Dispose();
+            }
         }
 
         base.OnExit(e);

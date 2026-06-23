@@ -30,14 +30,13 @@ $uv = "$env:USERPROFILE\.local\bin\uv.exe"
 
 ## Install the worker
 
-The base test environment does not install multi-gigabyte ML dependencies:
+Create the local Python 3.11 environment and install CUDA/ML dependencies:
 
 ```powershell
-& $uv python install 3.11
-& $uv sync --project worker --extra test
+& .\worker\bootstrap.ps1
 ```
 
-Install the CUDA/ML environment when models will be used:
+For development tests, also install the test group:
 
 ```powershell
 & $uv sync --project worker --extra test --extra ml
@@ -49,8 +48,7 @@ Models are pinned to exact Hugging Face commit revisions. The downloader
 creates SHA-256 install receipts and converts NLLB to CTranslate2 format.
 
 ```powershell
-& $uv run --project worker --extra ml voice-translator-models `
-  --accept-noncommercial
+& .\worker\bootstrap.ps1 -DownloadModels -AcceptNoncommercial
 ```
 
 By default, verified artifacts are installed under:
@@ -73,20 +71,20 @@ Future launches verify the install receipts before loading any model.
 
 ## Run
 
-Start the managed local worker host:
-
-```powershell
-& $dotnet run --project src/VoiceTranslator.WorkerHost
-```
-
-Start the WPF interface in another terminal:
+Start the WPF interface:
 
 ```powershell
 & $dotnet run --project src/VoiceTranslator.App
 ```
 
-The worker binds to `127.0.0.1`, receives a new 256-bit token for every launch,
-and rejects unauthenticated requests.
+The WPF application starts and stops its own worker. The first completed phrase
+after Start is used only as the ephemeral speaker reference; subsequent
+completed Russian phrases are translated. The worker binds to `127.0.0.1`,
+receives a new 256-bit token for every launch, and rejects unauthenticated
+requests.
+
+`VoiceTranslator.WorkerHost` remains available as a command-line diagnostic
+host, but it must not be started at the same time as the WPF application.
 
 Do not add downloaded models, captured audio, transcripts, translations,
 speaker references, embeddings, or launch tokens to repository files or logs.

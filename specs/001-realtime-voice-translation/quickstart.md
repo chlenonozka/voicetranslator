@@ -13,8 +13,8 @@
 ```powershell
 & .\.dotnet\dotnet.exe restore
 uv python install 3.11
-uv sync --project worker --extra cuda
-uv run --project worker python -m voice_translator_worker.model_manager download
+.\worker\bootstrap.ps1
+.\worker\bootstrap.ps1 -DownloadModels -AcceptNoncommercial
 ```
 
 Model download must display and require acknowledgement of NLLB's

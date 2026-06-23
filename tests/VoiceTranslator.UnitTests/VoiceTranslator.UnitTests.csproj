@@ -17,6 +17,7 @@
     <ProjectReference Include="..\..\src\VoiceTranslator.App\VoiceTranslator.App.csproj" />
     <ProjectReference Include="..\..\src\VoiceTranslator.Application\VoiceTranslator.Application.csproj" />
     <ProjectReference Include="..\..\src\VoiceTranslator.Domain\VoiceTranslator.Domain.csproj" />
+    <ProjectReference Include="..\..\src\VoiceTranslator.Infrastructure.LocalWorker\VoiceTranslator.Infrastructure.LocalWorker.csproj" />
     <ProjectReference Include="..\VoiceTranslator.Testing\VoiceTranslator.Testing.csproj" />
     <Using Include="Xunit" />
   </ItemGroup>

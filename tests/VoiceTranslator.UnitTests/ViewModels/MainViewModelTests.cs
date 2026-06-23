@@ -1,7 +1,10 @@
 using FluentAssertions;
 using VoiceTranslator.App.ViewModels;
+using VoiceTranslator.Domain.Audio;
 using VoiceTranslator.Domain.Languages;
 using VoiceTranslator.Domain.Sessions;
+using VoiceTranslator.Infrastructure.Audio.Devices;
+using VoiceTranslator.Application.Ports;
 
 namespace VoiceTranslator.UnitTests.ViewModels;
 
@@ -126,13 +129,139 @@ public sealed class MainViewModelTests
         viewModel.StatusMessage.Should().Contain("model");
     }
 
+    [Fact]
+    public void UpdateDevicesExposesSelectableEndpointIds()
+    {
+        MainViewModel viewModel = new();
+        var microphone = new AudioDeviceInfo("mic-1", "Microphone", false);
+        var speakers = new AudioDeviceInfo("out-1", "Speakers", false);
+
+        viewModel.UpdateDevices([microphone], [speakers]);
+
+        viewModel.Microphones.Should().ContainSingle().Which
+            .Should().Be(microphone);
+        viewModel.PhysicalOutputs.Should().ContainSingle().Which
+            .Should().Be(speakers);
+    }
+
+    [Fact]
+    public void ApplyPreflightUpdatesWorkerAndModelReadiness()
+    {
+        MainViewModel viewModel = new();
+
+        viewModel.ApplyPreflight(
+            new WorkerPreflightReport(
+                Ready: true,
+                CudaAvailable: true,
+                DeviceName: "RTX 3070",
+                TotalVramBytes: 8 * 1024L * 1024L * 1024L,
+                FreeVramBytes: 6 * 1024L * 1024L * 1024L,
+                PerformanceProfile: "balanced",
+                MissingModels: [],
+                AvailableLanguages: ["en"]));
+
+        viewModel.IsWorkerReady.Should().BeTrue();
+        viewModel.IsModelPreflightPassed.Should().BeTrue();
+        viewModel.PerformanceProfile.Should().Be("balanced");
+        viewModel.ModelInventorySummary.Should().Contain("All models verified");
+    }
+
+    [Fact]
+    public void ApplyPreflightExposesOnlyPassingTargetLanguages()
+    {
+        MainViewModel viewModel = new();
+
+        viewModel.ApplyPreflight(
+            new WorkerPreflightReport(
+                Ready: true,
+                CudaAvailable: true,
+                DeviceName: "RTX 3070",
+                TotalVramBytes: 8 * 1024L * 1024L * 1024L,
+                FreeVramBytes: 6 * 1024L * 1024L * 1024L,
+                PerformanceProfile: "balanced",
+                MissingModels: [],
+                AvailableLanguages: ["en", "fr"]));
+
+        viewModel.TargetLanguages
+            .Select(language => language.Code)
+            .Should().Equal("en", "fr");
+    }
+
+    [Fact]
+    public void ReportWorkerFailureMovesViewModelToFaulted()
+    {
+        MainViewModel viewModel = CreateReadyViewModel();
+
+        viewModel.ReportWorkerFailure("Worker heartbeat timed out.");
+
+        viewModel.State.Should().Be(SessionState.Faulted);
+        viewModel.IsWorkerReady.Should().BeFalse();
+        viewModel.StatusMessage.Should().Contain("heartbeat");
+    }
+
+    [Fact]
+    public void VirtualOutputRequiresVirtualDeviceAndChannelTest()
+    {
+        MainViewModel viewModel = CreateReadyViewModel();
+
+        viewModel.SelectedOutputMode = OutputMode.VirtualCable;
+        viewModel.SelectedPhysicalOutput = null;
+
+        viewModel.StartCommand.CanExecute(null).Should().BeFalse();
+        viewModel.StatusMessage.Should().Contain("virtual cable");
+
+        viewModel.SelectedVirtualOutput =
+            new AudioDeviceInfo("virtual", "VB-CABLE", true);
+
+        viewModel.StartCommand.CanExecute(null).Should().BeFalse();
+        viewModel.StatusMessage.Should().Contain("output channel test");
+
+        viewModel.ApplyOutputChannelTest(
+            new OutputChannelTestResult(Passed: true, Warning: null));
+
+        viewModel.StartCommand.CanExecute(null).Should().BeTrue();
+    }
+
+    [Fact]
+    public void DeviceListSeparatesPhysicalAndVirtualOutputs()
+    {
+        MainViewModel viewModel = new();
+        var speakers = new AudioDeviceInfo("out-1", "Speakers", false);
+        var cable = new AudioDeviceInfo("out-2", "VB-CABLE", true);
+
+        viewModel.UpdateDevices([], [speakers, cable]);
+
+        viewModel.PhysicalOutputs.Should().ContainSingle().Which
+            .Should().Be(speakers);
+        viewModel.VirtualOutputs.Should().ContainSingle().Which
+            .Should().Be(cable);
+    }
+
+    [Fact]
+    public void StartAndStopCommandsNotifyDesktopRuntime()
+    {
+        MainViewModel viewModel = CreateReadyViewModel();
+        int starts = 0;
+        int stops = 0;
+        viewModel.StartRequested += (_, _) => starts++;
+        viewModel.StopRequested += (_, _) => stops++;
+
+        viewModel.StartCommand.Execute(null);
+        viewModel.StopCommand.Execute(null);
+
+        starts.Should().Be(1);
+        stops.Should().Be(1);
+    }
+
     private static MainViewModel CreateReadyViewModel()
     {
         return new MainViewModel
         {
             IsModelPreflightPassed = true,
-            SelectedMicrophone = "Test microphone",
-            SelectedPhysicalOutput = "Test speakers",
+            SelectedMicrophone =
+                new AudioDeviceInfo("mic", "Test microphone", false),
+            SelectedPhysicalOutput =
+                new AudioDeviceInfo("out", "Test speakers", false),
             SelectedTargetLanguage = TargetLanguage.English,
             SpeakerConsentAccepted = true,
             IsWorkerReady = true,
