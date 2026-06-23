@@ -104,7 +104,7 @@ public sealed class DesktopRuntimeService :
                 .ConfigureAwait(false);
         }
         catch (Exception error)
-            when (error is not OperationCanceledException)
+            when (!cancellationToken.IsCancellationRequested)
         {
             await ReportFailureAsync(
                     $"Local worker could not start: {error.Message}")

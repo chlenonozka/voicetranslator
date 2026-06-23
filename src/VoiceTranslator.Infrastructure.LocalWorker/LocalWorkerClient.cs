@@ -54,6 +54,13 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
                     .Delay(retryDelay, cancellationToken)
                     .ConfigureAwait(false);
             }
+            catch (TaskCanceledException)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                await Task
+                    .Delay(retryDelay, cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
     }
 

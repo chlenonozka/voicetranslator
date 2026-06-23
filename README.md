@@ -33,7 +33,7 @@ $uv = "$env:USERPROFILE\.local\bin\uv.exe"
 Create the local Python 3.11 environment and install CUDA/ML dependencies:
 
 ```powershell
-& .\worker\bootstrap.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\worker\bootstrap.ps1
 ```
 
 For development tests, also install the test group:
@@ -48,7 +48,7 @@ Models are pinned to exact Hugging Face commit revisions. The downloader
 creates SHA-256 install receipts and converts NLLB to CTranslate2 format.
 
 ```powershell
-& .\worker\bootstrap.ps1 -DownloadModels -AcceptNoncommercial
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\worker\bootstrap.ps1 -DownloadModels -AcceptNoncommercial
 ```
 
 By default, verified artifacts are installed under:
@@ -71,14 +71,18 @@ Future launches verify the install receipts before loading any model.
 
 ## Run
 
-Start the WPF interface:
+For normal use, double-click:
 
-```powershell
-& $dotnet run --project src/VoiceTranslator.App
+```text
+START Voice Translator.cmd
 ```
 
-The WPF application starts and stops its own worker. The first completed phrase
-after Start is used only as the ephemeral speaker reference; subsequent
+The launcher uses the workspace-local .NET SDK, verifies that the worker
+environment and model inventory exist, then starts the WPF application. It
+writes startup output to `artifacts\logs\voice-translator-launch.log`.
+
+The WPF application starts and stops its own worker. The first completed
+phrase after Start is used only as the ephemeral speaker reference; subsequent
 completed Russian phrases are translated. The worker binds to `127.0.0.1`,
 receives a new 256-bit token for every launch, and rejects unauthenticated
 requests.

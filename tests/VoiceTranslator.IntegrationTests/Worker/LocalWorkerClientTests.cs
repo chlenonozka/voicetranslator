@@ -41,6 +41,22 @@ public sealed class LocalWorkerClientTests
         handler.CallCount.Should().Be(2);
     }
 
+    [Fact]
+    public async Task WaitUntilReadyAsyncRetriesHttpClientTimeout()
+    {
+        var handler = new TimeoutThenOkHandler();
+        using var httpClient = new HttpClient(handler);
+        using var client = new LocalWorkerClient(
+            httpClient,
+            new Uri("http://127.0.0.1:8765"),
+            "launch-token",
+            TimeSpan.Zero);
+
+        await client.WaitUntilReadyAsync(CancellationToken.None);
+
+        handler.CallCount.Should().Be(2);
+    }
+
     private sealed class RecordingHandler : HttpMessageHandler
     {
         private readonly Queue<HttpStatusCode> statusCodes;
@@ -66,6 +82,25 @@ public sealed class LocalWorkerClientTests
                 {
                     Content = new StringContent("""{"status":"ready"}"""),
                 });
+        }
+    }
+
+    private sealed class TimeoutThenOkHandler : HttpMessageHandler
+    {
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            if (CallCount == 1)
+            {
+                throw new TaskCanceledException(
+                    "The request was canceled due to HttpClient.Timeout.");
+            }
+
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         }
     }
 }

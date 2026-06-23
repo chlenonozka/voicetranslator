@@ -1,6 +1,7 @@
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using VoiceTranslator.App.ViewModels;
 using VoiceTranslator.App.Views;
 using VoiceTranslator.App.Services;
@@ -16,6 +17,7 @@ public partial class App : System.Windows.Application
         base.OnStartup(e);
 
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(e.Args);
+        builder.Logging.ClearProviders();
         builder.Services.AddSingleton<MainViewModel>();
         builder.Services.AddSingleton<MainWindow>();
         builder.Services.AddSingleton<DesktopRuntimeService>();
