@@ -74,11 +74,11 @@
 
 ## Phase 7: User Story 3 — Recovery and privacy
 
-- [ ] T052 [P] [US3] Write worker crash, cancellation and heartbeat tests in `tests/VoiceTranslator.IntegrationTests/Recovery/WorkerRecoveryTests.cs`
-- [ ] T053 [P] [US3] Write CUDA OOM retry and cleanup tests in `worker/tests/test_recovery.py`
+- [x] T052 [P] [US3] Write worker crash, cancellation and heartbeat tests in `tests/VoiceTranslator.IntegrationTests/Recovery/WorkerRecoveryTests.cs`
+- [x] T053 [P] [US3] Write CUDA OOM retry and cleanup tests in `worker/tests/test_recovery.py`
 - [ ] T054 [P] [US3] Write no-speech-persistence tests in `worker/tests/test_privacy.py` and `tests/VoiceTranslator.IntegrationTests/Privacy/`
-- [ ] T055 [US3] Implement worker failure coordinator and two-second shutdown in `src/VoiceTranslator.Application/Orchestration/SessionFailureCoordinator.cs`
-- [ ] T056 [US3] Implement OOM cleanup and one low-memory retry in `worker/voice_translator_worker/pipeline/recovery.py`
+- [x] T055 [US3] Implement worker failure coordinator and two-second shutdown in `src/VoiceTranslator.Application/Orchestration/SessionFailureCoordinator.cs`
+- [x] T056 [US3] Implement OOM cleanup and one low-memory retry in `worker/voice_translator_worker/pipeline/recovery.py`
 - [ ] T057 [US3] Implement device-loss handling and stale-buffer disposal in `src/VoiceTranslator.Infrastructure.Audio/`
 - [ ] T058 [US3] Add accessible error and recovery UI in `src/VoiceTranslator.App/`
 

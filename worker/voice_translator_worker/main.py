@@ -5,16 +5,18 @@ from collections.abc import Callable, Sequence
 import uvicorn
 from fastapi import FastAPI
 
-from .api import create_app
+from .runtime import create_runtime_app
 
 
 ServerRunner = Callable[..., None]
+RuntimeFactory = Callable[[str], FastAPI]
 
 
 def run(
     arguments: Sequence[str] | None = None,
     *,
     runner: ServerRunner = uvicorn.run,
+    runtime_factory: RuntimeFactory = create_runtime_app,
 ) -> None:
     parser = argparse.ArgumentParser(
         description="Local voice translation worker",
@@ -27,7 +29,7 @@ def run(
     if not launch_token:
         raise RuntimeError("Worker launch token is required.")
 
-    app: FastAPI = create_app(launch_token)
+    app: FastAPI = runtime_factory(launch_token)
     runner(app, host=options.host, port=options.port)
 
 

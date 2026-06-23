@@ -1,3 +1,4 @@
+using VoiceTranslator.Application.Orchestration;
 using VoiceTranslator.Infrastructure.LocalWorker;
 
 var workspaceRoot = FindWorkspaceRoot(AppContext.BaseDirectory);
@@ -30,11 +31,14 @@ var healthProbe = new LocalWorkerHealthProbe(
         },
         workerEndpoint,
         token));
+var shutdown = new VoiceTranslator.WorkerHost.WorkerHostShutdownSignal();
+var failureCoordinator = new SessionFailureCoordinator(shutdown);
 
 await using var manager = new WorkerProcessManager(
     launcher,
     healthProbe,
-    endpoint);
+    endpoint,
+    failureObserver: failureCoordinator);
 var handle = await manager.StartAsync(CancellationToken.None);
 
 Console.WriteLine(
@@ -48,7 +52,16 @@ Console.CancelKeyPress += (_, eventArgs) =>
     eventArgs.Cancel = true;
     stopped.TrySetResult();
 };
-await stopped.Task;
+Task completed = await Task.WhenAny(
+    stopped.Task,
+    shutdown.Completion);
+if (ReferenceEquals(completed, shutdown.Completion))
+{
+    Console.Error.WriteLine(
+        $"Worker failure: {failureCoordinator.Failure}; restart required.");
+    return 1;
+}
+
 return 0;
 
 static string FindWorkspaceRoot(string startDirectory)

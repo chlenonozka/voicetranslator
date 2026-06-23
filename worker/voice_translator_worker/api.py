@@ -22,6 +22,7 @@ from .pipeline.service import (
     PhrasePipeline,
     SpeakerSessionNotFound,
 )
+from .pipeline.recovery import OomRecovery
 
 
 MAX_WAV_BYTES = 44 + (30 * 16_000 * 2)
@@ -30,8 +31,29 @@ MAX_WAV_BYTES = 44 + (30 * 16_000 * 2)
 def create_app(
     launch_token: str,
     pipeline: PhrasePipeline | None = None,
+    recovery: OomRecovery | None = None,
 ) -> FastAPI:
     require_token = token_dependency(launch_token)
+    active_recovery = recovery
+    if pipeline is not None and active_recovery is None:
+        resolver = getattr(
+            pipeline,
+            "resolve_oom_error_type",
+            None,
+        )
+        release_memory = getattr(
+            pipeline,
+            "release_memory",
+            None,
+        )
+        recovery_options = {"registry": pipeline}
+        if resolver is not None:
+            recovery_options["oom_error_resolver"] = resolver
+        if release_memory is not None:
+            recovery_options["release_memory"] = release_memory
+        active_recovery = OomRecovery(
+            **recovery_options,
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -99,10 +121,13 @@ def create_app(
         _validate_upload_size(audio_wav)
 
         try:
-            result = active_pipeline.translate_phrase(
-                session_id,
-                target_language,
-                audio_wav,
+            result = active_recovery.run(
+                lambda profile: active_pipeline.translate_phrase(
+                    session_id,
+                    target_language,
+                    audio_wav,
+                    performance_profile=profile,
+                )
             )
         except SpeakerSessionNotFound as error:
             raise HTTPException(
@@ -113,6 +138,14 @@ def create_app(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=str(error),
+            ) from error
+        except Exception as error:
+            if active_recovery is None or not active_recovery.is_oom(error):
+                raise
+            active_pipeline.clear()
+            raise HTTPException(
+                status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+                detail="GPU memory exhausted",
             ) from error
 
         return Response(

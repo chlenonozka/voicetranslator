@@ -6,4 +6,9 @@ public interface IWorkerHealthProbe
         Uri endpoint,
         string token,
         CancellationToken cancellationToken);
+
+    Task CheckHealthAsync(
+        Uri endpoint,
+        string token,
+        CancellationToken cancellationToken);
 }

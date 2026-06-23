@@ -58,6 +58,11 @@ public sealed class WorkerProcessManagerTests
             LaunchedWorker worker,
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
+
+        public Task WaitForExitAsync(
+            LaunchedWorker worker,
+            CancellationToken cancellationToken) =>
+            Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
     }
 
     private sealed class FakeWorkerHealthProbe : IWorkerHealthProbe
@@ -76,5 +81,11 @@ public sealed class WorkerProcessManagerTests
             CallCount++;
             return Task.CompletedTask;
         }
+
+        public Task CheckHealthAsync(
+            Uri endpoint,
+            string token,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 }

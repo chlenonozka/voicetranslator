@@ -9,4 +9,8 @@ public interface IWorkerLauncher
     Task StopAsync(
         LaunchedWorker worker,
         CancellationToken cancellationToken);
+
+    Task WaitForExitAsync(
+        LaunchedWorker worker,
+        CancellationToken cancellationToken);
 }

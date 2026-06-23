@@ -8,6 +8,7 @@ class NllbTranslator:
         self.translator = translator
         self.tokenizer = tokenizer
         self.tokenizer.src_lang = "rus_Cyrl"
+        self._unloaded = False
 
     def translate(
         self,
@@ -17,6 +18,9 @@ class NllbTranslator:
         unload_after: bool = False,
     ) -> str:
         target = TARGET_LANGUAGES[target_code]
+        if self._unloaded:
+            self.translator.load_model()
+            self._unloaded = False
         source_ids = self.tokenizer.encode(text)
         source_tokens = self.tokenizer.convert_ids_to_tokens(source_ids)
 
@@ -31,3 +35,4 @@ class NllbTranslator:
         finally:
             if unload_after:
                 self.translator.unload_model()
+                self._unloaded = True

@@ -41,3 +41,22 @@ def test_run_rejects_missing_launch_token(
 
     with pytest.raises(RuntimeError, match="launch token"):
         run([], runner=runner)
+
+
+def test_run_uses_runtime_factory_to_compose_pipeline_and_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VOICE_TRANSLATOR_WORKER_TOKEN", "launch-token")
+    captured: dict[str, object] = {}
+
+    def runtime_factory(token: str) -> FastAPI:
+        captured["token"] = token
+        return FastAPI()
+
+    def runner(app: FastAPI, *, host: str, port: int) -> None:
+        captured["app"] = app
+
+    run([], runner=runner, runtime_factory=runtime_factory)
+
+    assert captured["token"] == "launch-token"
+    assert isinstance(captured["app"], FastAPI)

@@ -33,6 +33,16 @@ def test_translation_can_unload_model_after_request() -> None:
     assert engine.unloaded is True
 
 
+def test_translation_reloads_model_after_previous_unload() -> None:
+    engine = FakeTranslator()
+    translator = NllbTranslator(engine, FakeTokenizer())
+    translator.translate("Привет", "en", unload_after=True)
+
+    translator.translate("Снова", "en")
+
+    assert engine.load_count == 1
+
+
 class FakeResult:
     hypotheses = [["eng_Latn", "translated-token"]]
 
@@ -42,6 +52,7 @@ class FakeTranslator:
         self.source_batch: list[list[str]] = []
         self.target_prefix: list[list[str]] = []
         self.unloaded = False
+        self.load_count = 0
 
     def translate_batch(
         self,
@@ -55,6 +66,10 @@ class FakeTranslator:
 
     def unload_model(self) -> None:
         self.unloaded = True
+
+    def load_model(self) -> None:
+        self.load_count += 1
+        self.unloaded = False
 
 
 class FakeTokenizer:

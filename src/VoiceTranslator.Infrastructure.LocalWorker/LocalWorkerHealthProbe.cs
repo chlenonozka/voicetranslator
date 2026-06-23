@@ -15,4 +15,15 @@ public sealed class LocalWorkerHealthProbe(
             .WaitUntilReadyAsync(cancellationToken)
             .ConfigureAwait(false);
     }
+
+    public async Task CheckHealthAsync(
+        Uri endpoint,
+        string token,
+        CancellationToken cancellationToken)
+    {
+        using var client = clientFactory(endpoint, token);
+        await client
+            .CheckHealthAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
 }

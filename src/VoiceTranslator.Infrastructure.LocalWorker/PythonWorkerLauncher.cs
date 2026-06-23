@@ -99,4 +99,16 @@ public sealed class PythonWorkerLauncher : IWorkerLauncher
             }
         }
     }
+
+    public Task WaitForExitAsync(
+        LaunchedWorker worker,
+        CancellationToken cancellationToken)
+    {
+        if (!processes.TryGetValue(worker.ProcessId, out var process))
+        {
+            return Task.CompletedTask;
+        }
+
+        return process.WaitForExitAsync(cancellationToken);
+    }
 }

@@ -48,6 +48,20 @@ class PhraseSynthesizer(Protocol):
     ) -> bytes: ...
 
 
+class ModelResidency(Protocol):
+    def activate_profile(self, profile: str) -> None: ...
+
+    def unload_all(self) -> None: ...
+
+
+class StaticModelResidency:
+    def activate_profile(self, profile: str) -> None:
+        pass
+
+    def unload_all(self) -> None:
+        pass
+
+
 @dataclass(frozen=True)
 class PhraseResult:
     request_id: UUID
@@ -68,6 +82,7 @@ class PhrasePipeline:
         synthesizer: PhraseSynthesizer,
         sessions: SpeakerSessionStore,
         performance_profile: str,
+        profile_controller: ModelResidency | None = None,
     ) -> None:
         self.conditioner = conditioner
         self.asr = asr
@@ -75,8 +90,12 @@ class PhrasePipeline:
         self.synthesizer = synthesizer
         self.sessions = sessions
         self.performance_profile = performance_profile
+        self.profile_controller = profile_controller or StaticModelResidency()
 
     def create_speaker_session(self, reference_wav: bytes) -> UUID:
+        self.profile_controller.activate_profile(
+            self.performance_profile
+        )
         session_id = uuid4()
         conditioning = self.conditioner.create(reference_wav)
         self.sessions.put(session_id, bytearray(reference_wav), conditioning)
@@ -90,11 +109,16 @@ class PhrasePipeline:
         session_id: UUID,
         target_code: str,
         audio_wav: bytes,
+        *,
+        performance_profile: str | None = None,
     ) -> PhraseResult:
         if not self.sessions.contains(session_id):
             raise SpeakerSessionNotFound(str(session_id))
         if target_code not in TARGET_LANGUAGES:
             raise InvalidTargetLanguage(target_code)
+
+        active_profile = performance_profile or self.performance_profile
+        self.profile_controller.activate_profile(active_profile)
 
         started = perf_counter()
         recognition = self.asr.transcribe(audio_wav)
@@ -124,11 +148,14 @@ class PhrasePipeline:
             asr_ms=asr_ms,
             translate_ms=translate_ms,
             synthesize_ms=synthesize_ms,
-            performance_profile=self.performance_profile,
+            performance_profile=active_profile,
         )
 
     def clear(self) -> None:
         self.sessions.clear()
+
+    def unload_all(self) -> None:
+        self.profile_controller.unload_all()
 
 
 def _elapsed_ms(started: float) -> float:
