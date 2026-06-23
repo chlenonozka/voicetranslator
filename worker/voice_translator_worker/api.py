@@ -1,19 +1,23 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import sys
+from threading import Lock
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import (
     Depends,
     FastAPI,
     File,
     Form,
+    Header,
     HTTPException,
     Request,
     Response,
     UploadFile,
     status,
 )
+from starlette.concurrency import run_in_threadpool
 
 from .auth import token_dependency
 from .pipeline.service import (
@@ -23,17 +27,39 @@ from .pipeline.service import (
     SpeakerSessionNotFound,
 )
 from .pipeline.recovery import OomRecovery
+from .pipeline.preflight import PreflightService
+from .models.gpu_profiles import release_torch_memory
 
 
 MAX_WAV_BYTES = 44 + (30 * 16_000 * 2)
+
+
+class RequestCancellationRegistry:
+    def __init__(self) -> None:
+        self._request_ids: set[UUID] = set()
+        self._lock = Lock()
+
+    def cancel(self, request_id: UUID) -> None:
+        with self._lock:
+            self._request_ids.add(request_id)
+
+    def is_cancelled(self, request_id: UUID) -> bool:
+        with self._lock:
+            return request_id in self._request_ids
+
+    def clear(self) -> None:
+        with self._lock:
+            self._request_ids.clear()
 
 
 def create_app(
     launch_token: str,
     pipeline: PhrasePipeline | None = None,
     recovery: OomRecovery | None = None,
+    preflight_service: PreflightService | None = None,
 ) -> FastAPI:
     require_token = token_dependency(launch_token)
+    cancellations = RequestCancellationRegistry()
     active_recovery = recovery
     if pipeline is not None and active_recovery is None:
         resolver = getattr(
@@ -60,6 +86,11 @@ def create_app(
         yield
         if pipeline is not None:
             pipeline.clear()
+            pipeline.unload_all()
+        torch_module = sys.modules.get("torch")
+        if torch_module is not None:
+            release_torch_memory(torch_module)
+        cancellations.clear()
 
     app = FastAPI(
         title="Local Voice Translation Worker",
@@ -73,6 +104,18 @@ def create_app(
     )
     async def health() -> dict[str, str]:
         return {"status": "ready"}
+
+    @app.post(
+        "/v1/preflight",
+        dependencies=[Depends(require_token)],
+    )
+    async def preflight() -> dict[str, object]:
+        if preflight_service is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="preflight service is not ready",
+            )
+        return preflight_service.run().to_api()
 
     @app.post(
         "/v1/speaker-sessions",
@@ -109,8 +152,14 @@ def create_app(
         session_id: Annotated[UUID, Form(alias="sessionId")],
         target_language: Annotated[str, Form(alias="targetLanguage")],
         audio: Annotated[UploadFile, File()],
+        x_request_id: Annotated[
+            UUID | None,
+            Header(alias="X-Request-Id"),
+        ] = None,
     ) -> Response:
         active_pipeline = _require_pipeline(pipeline)
+        request_id = x_request_id or uuid4()
+        _reject_cancelled(cancellations, request_id)
         if audio.content_type != "audio/wav":
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -121,14 +170,16 @@ def create_app(
         _validate_upload_size(audio_wav)
 
         try:
-            result = active_recovery.run(
+            result = await run_in_threadpool(
+                active_recovery.run,
                 lambda profile: active_pipeline.translate_phrase(
                     session_id,
                     target_language,
                     audio_wav,
                     performance_profile=profile,
-                )
+                ),
             )
+            _reject_cancelled(cancellations, request_id)
         except SpeakerSessionNotFound as error:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -152,13 +203,22 @@ def create_app(
             content=result.audio_wav,
             media_type="audio/wav",
             headers={
-                "X-Request-Id": str(result.request_id),
+                "X-Request-Id": str(request_id),
                 "X-Asr-Ms": f"{result.asr_ms:.3f}",
                 "X-Translate-Ms": f"{result.translate_ms:.3f}",
                 "X-Synthesize-Ms": f"{result.synthesize_ms:.3f}",
                 "X-Performance-Profile": result.performance_profile,
             },
         )
+
+    @app.post(
+        "/v1/cancel/{request_id}",
+        status_code=status.HTTP_202_ACCEPTED,
+        dependencies=[Depends(require_token)],
+    )
+    async def cancel_request(request_id: UUID) -> dict[str, str]:
+        cancellations.cancel(request_id)
+        return {"status": "cancellation-requested"}
 
     return app
 
@@ -184,4 +244,15 @@ def _validate_upload_size(audio_wav: bytes) -> None:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="audio exceeds 30 seconds of mono 16 kHz PCM",
+        )
+
+
+def _reject_cancelled(
+    cancellations: RequestCancellationRegistry,
+    request_id: UUID,
+) -> None:
+    if cancellations.is_cancelled(request_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="request canceled",
         )

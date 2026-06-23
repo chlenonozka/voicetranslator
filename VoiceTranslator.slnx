@@ -15,4 +15,14 @@
     <Project Path="tests/VoiceTranslator.UnitTests/VoiceTranslator.UnitTests.csproj" />
     <Project Path="tests/VoiceTranslator.WindowsE2ETests/VoiceTranslator.WindowsE2ETests.csproj" />
   </Folder>
+  <Folder Name="/worker/">
+    <File Path="worker/pyproject.toml" />
+    <File Path="worker/uv.lock" />
+  </Folder>
+  <Folder Name="/models/">
+    <File Path="models/manifests/nllb-600m.json" />
+    <File Path="models/manifests/whisper-medium.json" />
+    <File Path="models/manifests/whisper-small.json" />
+    <File Path="models/manifests/xtts-v2.json" />
+  </Folder>
 </Solution>

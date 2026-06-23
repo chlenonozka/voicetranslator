@@ -10,7 +10,9 @@ from typing import Protocol
 from fastapi import FastAPI
 
 from .api import create_app
-from .models.model_manager import ProfileModelResidency
+from .models.gpu_profiles import CudaReport, GpuProfile, inspect_cuda
+from .models.model_manager import ModelManager, ProfileModelResidency
+from .pipeline.preflight import PreflightService
 from .pipeline.asr import RussianAsr
 from .pipeline.service import (
     PhrasePipeline,
@@ -308,7 +310,17 @@ def create_runtime_app(
     pipeline_factory: Callable[[], PhrasePipeline | None] | None = None,
 ) -> FastAPI:
     factory = pipeline_factory or create_runtime_pipeline
-    return create_app(launch_token, factory())
+    pipeline = factory()
+    config = RuntimeConfig.from_environment()
+    preflight = PreflightService(
+        model_inventory=ModelManager(config.model_root),
+        cuda_inspector=_inspect_runtime_cuda,
+    )
+    return create_app(
+        launch_token,
+        pipeline,
+        preflight_service=preflight,
+    )
 
 
 def _has_verified_models(
@@ -321,10 +333,30 @@ def _has_verified_models(
         payload = json.loads(receipt_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
-    return (
-        REQUIRED_MODEL_IDS.issubset(payload.get("verified", []))
-        and all(
-            (model_root / model_id).is_dir()
-            for model_id in REQUIRED_MODEL_IDS
-        )
+    verified = set(payload.get("verified", []))
+    if not REQUIRED_MODEL_IDS.issubset(verified):
+        return False
+
+    manager = ModelManager(model_root)
+    return all(
+        manager.verify_installed(model_id)
+        for model_id in REQUIRED_MODEL_IDS
     )
+
+
+def _inspect_runtime_cuda() -> CudaReport:
+    try:
+        return inspect_cuda()
+    except (ImportError, ModuleNotFoundError):
+        return CudaReport(
+            available=False,
+            device_name=None,
+            total_bytes=0,
+            free_bytes=0,
+            profile=GpuProfile(
+                "cuda-runtime-unavailable",
+                "small",
+                "int8",
+                "int8_float16",
+            ),
+        )

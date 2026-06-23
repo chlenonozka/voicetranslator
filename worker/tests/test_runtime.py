@@ -1,6 +1,10 @@
-import json
+import shutil
 from pathlib import Path
 
+from voice_translator_worker.models.model_manager import (
+    ModelManager,
+    ModelManifest,
+)
 from voice_translator_worker.pipeline.asr import Recognition
 from voice_translator_worker.runtime import (
     LoadedModelSet,
@@ -66,7 +70,22 @@ def test_default_composition_returns_unavailable_when_artifacts_are_missing(
     tmp_path: Path,
 ) -> None:
     config = create_verified_config(tmp_path)
-    (config.model_root / "xtts-v2").rmdir()
+    shutil.rmtree(config.model_root / "xtts-v2")
+
+    pipeline = create_runtime_pipeline(
+        config=config,
+        loader=FakeRuntimeModelLoader(),
+    )
+
+    assert pipeline is None
+
+
+def test_default_composition_rejects_corrupted_installed_model(
+    tmp_path: Path,
+) -> None:
+    config = create_verified_config(tmp_path)
+    corrupted = config.model_root / "whisper-small" / "model.bin"
+    corrupted.write_bytes(b"corrupt")
 
     pipeline = create_runtime_pipeline(
         config=config,
@@ -85,21 +104,20 @@ def create_verified_config(tmp_path: Path) -> RuntimeConfig:
         "nllb-600m",
         "xtts-v2",
     ):
-        (model_root / model_id).mkdir()
-    receipt_path = tmp_path / "verified-models.json"
-    receipt_path.write_text(
-        json.dumps(
-            {
-                "verified": [
-                    "whisper-medium",
-                    "whisper-small",
-                    "nllb-600m",
-                    "xtts-v2",
-                ]
-            }
-        ),
-        encoding="utf-8",
-    )
+        model_dir = model_root / model_id
+        model_dir.mkdir()
+        (model_dir / "model.bin").write_bytes(model_id.encode())
+        ModelManager(model_root).write_receipt(
+            ModelManifest(
+                id=model_id,
+                repo_id=f"owner/{model_id}",
+                revision="0" * 40,
+                license="test",
+                commercial_use_allowed=True,
+                files=(),
+            )
+        )
+    receipt_path = model_root / "verified-models.json"
     return RuntimeConfig(
         model_root=model_root,
         receipt_path=receipt_path,

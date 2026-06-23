@@ -15,6 +15,8 @@ paths:
       responses:
         "200":
           description: Hardware, model, and language capability report
+        "503":
+          description: Preflight service unavailable
   /v1/speaker-sessions:
     post:
       summary: Create ephemeral current-speaker conditioning
@@ -49,6 +51,11 @@ paths:
                 sessionId: { type: string, format: uuid }
                 targetLanguage: { type: string }
                 audio: { type: string, contentEncoding: binary }
+      parameters:
+        - in: header
+          name: X-Request-Id
+          required: false
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: Synthesized PCM plus privacy-safe timing headers
@@ -56,6 +63,7 @@ paths:
             audio/wav:
               schema: { type: string, contentEncoding: binary }
         "422": { description: Low confidence or invalid language }
+        "409": { description: Request was canceled }
         "507": { description: GPU memory profile exhausted }
   /v1/cancel/{requestId}:
     post:

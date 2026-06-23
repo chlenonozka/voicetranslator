@@ -20,27 +20,27 @@
 - [x] T010 Replace `src/VoiceTranslator.Gateway/` with `src/VoiceTranslator.WorkerHost/`
 - [x] T011 Add Python, uv, model cache, and local worker patterns to `.gitignore`
 - [x] T012 Create Python 3.11 project and locked dependency groups in `worker/pyproject.toml`
-- [ ] T013 Add worker and model manifest directories to `VoiceTranslator.slnx`
-- [ ] T014 Update local setup, licensing, model download, and run commands in `README.md`
+- [x] T013 Add worker and model manifest directories to `VoiceTranslator.slnx`
+- [x] T014 Update local setup, licensing, model download, and run commands in `README.md`
 
 ## Phase 3: Contracts and shared domain
 
-- [ ] T015 [P] Write failing worker authentication and OpenAPI tests in `worker/tests/test_auth.py` and `tests/VoiceTranslator.ContractTests/Worker/WorkerOpenApiTests.cs`
+- [x] T015 [P] Write failing worker authentication and OpenAPI tests in `worker/tests/test_auth.py` and `tests/VoiceTranslator.ContractTests/Worker/WorkerOpenApiTests.cs`
 - [x] T016 [P] Write failing session-state tests in `tests/VoiceTranslator.UnitTests/Sessions/TranslationSessionTests.cs`
 - [ ] T017 [P] Write failing model manifest/license tests in `tests/VoiceTranslator.UnitTests/Models/ModelManifestTests.cs`
 - [ ] T018 [P] Write failing 16-language mapping tests in `worker/tests/test_languages.py`
 - [ ] T019 Implement local session, worker, model, capability, and audio entities in `src/VoiceTranslator.Domain/`
 - [ ] T020 Implement application ports for worker lifecycle, model management, phrase translation, and output in `src/VoiceTranslator.Application/Ports/`
-- [ ] T021 Implement FastAPI token dependency, lifespan cleanup, health and cancellation endpoints in `worker/voice_translator_worker/`
-- [ ] T022 Implement typed .NET worker client models and token header handler in `src/VoiceTranslator.Infrastructure.LocalWorker/`
+- [x] T021 Implement FastAPI token dependency, lifespan cleanup, health and cancellation endpoints in `worker/voice_translator_worker/`
+- [x] T022 Implement typed .NET worker client models and token header handler in `src/VoiceTranslator.Infrastructure.LocalWorker/`
 
 ## Phase 4: Model management and hardware preflight
 
-- [ ] T023 [P] Write failing manifest hash, pinned revision, license acknowledgement, and offline tests in `worker/tests/test_model_manager.py`
-- [ ] T024 [P] Write failing CUDA profile and OOM downgrade tests in `worker/tests/test_gpu_profiles.py`
+- [x] T023 [P] Write failing manifest hash, pinned revision, license acknowledgement, and offline tests in `worker/tests/test_model_manager.py`
+- [x] T024 [P] Write failing CUDA profile and OOM downgrade tests in `worker/tests/test_gpu_profiles.py`
 - [x] T025 Create pinned manifests for Whisper medium/small, NLLB and XTTS in `models/manifests/`
-- [ ] T026 Implement Hugging Face `snapshot_download` and hash verification in `worker/voice_translator_worker/models/model_manager.py`
-- [ ] T027 Implement CUDA/VRAM inspection, balanced profile, low-memory profile and cleanup in `worker/voice_translator_worker/models/gpu_profiles.py`
+- [x] T026 Implement Hugging Face `snapshot_download` and hash verification in `worker/voice_translator_worker/models/model_manager.py`
+- [x] T027 Implement CUDA/VRAM inspection, balanced profile, low-memory profile and cleanup in `worker/voice_translator_worker/models/gpu_profiles.py`
 - [ ] T028 Implement per-language translation/synthesis preflight in `worker/voice_translator_worker/pipeline/preflight.py`
 - [ ] T029 Implement .NET model inventory/download progress client in `src/VoiceTranslator.Infrastructure.LocalWorker/Models/`
 - [x] T030 Add WPF model/license/preflight screen in `src/VoiceTranslator.App/Views/ModelSetupView.xaml`

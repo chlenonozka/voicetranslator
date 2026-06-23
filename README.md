@@ -1,46 +1,92 @@
 # Voice Translator
 
-Windows 11 desktop application for real-time cloud voice translation with
-session-scoped speaker timbre preservation.
+Windows 11 desktop application for local phrase-by-phrase translation of
+Russian speech into 16 target languages with session-scoped speaker timbre.
 
-The implementation follows the active Spec Kit plan at
-`specs/001-realtime-voice-translation/plan.md`.
+Audio, transcripts, translations, and speaker conditioning are kept in memory
+and are not intentionally persisted.
+
+## License restriction
+
+This configuration is intended only for personal, noncommercial use. NLLB and
+XTTS have model-specific license restrictions. Review their licenses before
+downloading them and pass `--accept-noncommercial` only if you accept those
+terms.
 
 ## Prerequisites
 
 - Windows 11 x64
-- .NET 10 SDK
-- Azure tenant access required by the provider feasibility gate
-- Signed virtual-audio-cable for virtual microphone scenarios
+- NVIDIA GPU with CUDA support; the tested target is an RTX 3070 8 GB
+- .NET 10 SDK, or the workspace-local SDK in `.dotnet`
+- Python 3.11 and [uv](https://docs.astral.sh/uv/)
+- Optional signed virtual audio cable for virtual-microphone routing
 
-This repository includes a workspace-local SDK under `.dotnet/`. In PowerShell:
+In PowerShell:
 
 ```powershell
 $dotnet = "$PWD\.dotnet\dotnet.exe"
+$uv = "$env:USERPROFILE\.local\bin\uv.exe"
 ```
+
+## Install the worker
+
+The base test environment does not install multi-gigabyte ML dependencies:
+
+```powershell
+& $uv python install 3.11
+& $uv sync --project worker --extra test
+```
+
+Install the CUDA/ML environment when models will be used:
+
+```powershell
+& $uv sync --project worker --extra test --extra ml
+```
+
+## Download verified models
+
+Models are pinned to exact Hugging Face commit revisions. The downloader
+creates SHA-256 install receipts and converts NLLB to CTranslate2 format.
+
+```powershell
+& $uv run --project worker --extra ml voice-translator-models `
+  --accept-noncommercial
+```
+
+By default, verified artifacts are installed under:
+
+```text
+%USERPROFILE%\.voice-translator\models
+```
+
+Future launches verify the install receipts before loading any model.
 
 ## Build and test
 
 ```powershell
-& $dotnet restore
-& $dotnet build --configuration Release --no-restore
-& $dotnet test --configuration Release --no-build
-& $dotnet format --verify-no-changes
-```
-
-Run Windows-only acceptance suites explicitly:
-
-```powershell
-& $dotnet test tests/VoiceTranslator.PerformanceTests --configuration Release
-& $dotnet test tests/VoiceTranslator.WindowsE2ETests --configuration Release
+& $dotnet restore VoiceTranslator.slnx
+& $dotnet format VoiceTranslator.slnx --verify-no-changes --no-restore
+& $dotnet build VoiceTranslator.slnx --configuration Release --no-restore
+& $dotnet test VoiceTranslator.slnx --configuration Release --no-build --no-restore
+& worker\.venv\Scripts\python.exe -m pytest worker\tests -q
 ```
 
 ## Run
 
+Start the managed local worker host:
+
 ```powershell
-& $dotnet run --project src/VoiceTranslator.App
-& $dotnet run --project src/VoiceTranslator.Gateway
+& $dotnet run --project src/VoiceTranslator.WorkerHost
 ```
 
-Do not add Azure keys, captured audio, transcripts, translations, consent
-recordings, or reusable voice features to repository files or logs.
+Start the WPF interface in another terminal:
+
+```powershell
+& $dotnet run --project src/VoiceTranslator.App
+```
+
+The worker binds to `127.0.0.1`, receives a new 256-bit token for every launch,
+and rejects unauthenticated requests.
+
+Do not add downloaded models, captured audio, transcripts, translations,
+speaker references, embeddings, or launch tokens to repository files or logs.

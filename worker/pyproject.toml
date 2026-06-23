@@ -15,6 +15,9 @@ dependencies = [
   "uvicorn[standard]>=0.38,<0.39",
 ]
 
+[project.scripts]
+voice-translator-models = "voice_translator_worker.models.download:main"
+
 [project.optional-dependencies]
 test = [
   "pytest>=9,<10",

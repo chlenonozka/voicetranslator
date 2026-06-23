@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from uuid import uuid4
 
 from voice_translator_worker.api import create_app
 from voice_translator_worker.pipeline.asr import Recognition
@@ -105,3 +106,80 @@ class FakeXttsEngine:
         assert language == "en"
         assert conditioning is not None
         return b"wav"
+
+
+def test_cancelled_request_id_is_rejected_before_inference() -> None:
+    sessions = SpeakerSessionStore()
+    pipeline = PhrasePipeline(
+        conditioner=FakeConditioner(),
+        asr=FakeAsr(),
+        translator=FakeTextTranslator(),
+        synthesizer=XttsSynthesizer(FakeXttsEngine(), sessions),
+        sessions=sessions,
+        performance_profile="balanced",
+    )
+    request_id = uuid4()
+    headers = {"X-Worker-Token": "expected-token"}
+
+    with TestClient(create_app("expected-token", pipeline)) as client:
+        create_response = client.post(
+            "/v1/speaker-sessions",
+            content=b"reference-wav",
+            headers={**headers, "Content-Type": "audio/wav"},
+        )
+        session_id = create_response.json()["sessionId"]
+        cancel_response = client.post(
+            f"/v1/cancel/{request_id}",
+            headers=headers,
+        )
+        response = client.post(
+            "/v1/translate-phrase",
+            data={
+                "sessionId": session_id,
+                "targetLanguage": "en",
+            },
+            files={"audio": ("phrase.wav", b"phrase-wav", "audio/wav")},
+            headers={
+                **headers,
+                "X-Request-Id": str(request_id),
+            },
+        )
+
+    assert cancel_response.status_code == 202
+    assert response.status_code == 409
+    assert response.json()["detail"] == "request canceled"
+
+
+def test_shutdown_clears_sessions_and_unloads_models() -> None:
+    sessions = SpeakerSessionStore()
+    controller = RecordingModelResidency()
+    pipeline = PhrasePipeline(
+        conditioner=FakeConditioner(),
+        asr=FakeAsr(),
+        translator=FakeTextTranslator(),
+        synthesizer=XttsSynthesizer(FakeXttsEngine(), sessions),
+        sessions=sessions,
+        performance_profile="balanced",
+        profile_controller=controller,
+    )
+
+    with TestClient(create_app("expected-token", pipeline)) as client:
+        response = client.get(
+            "/v1/health",
+            headers={"X-Worker-Token": "expected-token"},
+        )
+        assert response.status_code == 200
+
+    assert controller.unload_count == 1
+
+
+class RecordingModelResidency:
+    def __init__(self) -> None:
+        self.unload_count = 0
+
+    @staticmethod
+    def activate_profile(profile: str) -> None:
+        pass
+
+    def unload_all(self) -> None:
+        self.unload_count += 1
