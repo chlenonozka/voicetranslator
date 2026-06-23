@@ -2,7 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from voice_translator_worker.models.download import download_models
+from voice_translator_worker.models import download as download_module
+from voice_translator_worker.models.download import download_models, main
 from voice_translator_worker.models.model_manager import LicenseNotAccepted
 
 
@@ -49,6 +50,28 @@ def test_download_models_loads_selected_manifests(
 
     assert manager.downloaded == [("whisper-small", False)]
     assert receipts == [Path("whisper-small-receipt.json")]
+
+
+def test_cli_uses_all_default_models_when_no_model_ids_are_given(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    downloaded: list[str] = []
+
+    def fake_download_models(**kwargs: object) -> list[Path]:
+        downloaded.extend(kwargs["model_ids"])  # type: ignore[arg-type]
+        return [tmp_path / "receipt.json"]
+
+    monkeypatch.setattr(
+        download_module,
+        "download_models",
+        fake_download_models,
+    )
+
+    exit_code = main(["--accept-noncommercial"])
+
+    assert exit_code == 0
+    assert downloaded == list(download_module.DEFAULT_MODEL_IDS)
 
 
 class FakeModelManager:

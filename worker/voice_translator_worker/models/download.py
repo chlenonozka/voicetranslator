@@ -54,8 +54,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "model_ids",
         nargs="*",
-        choices=DEFAULT_MODEL_IDS,
-        default=DEFAULT_MODEL_IDS,
+        default=None,
     )
     parser.add_argument(
         "--manifest-dir",
@@ -76,11 +75,24 @@ def main(arguments: Sequence[str] | None = None) -> int:
         ),
     )
     options = parser.parse_args(arguments)
+    model_ids = options.model_ids or DEFAULT_MODEL_IDS
+    invalid_model_ids = [
+        model_id
+        for model_id in model_ids
+        if model_id not in DEFAULT_MODEL_IDS
+    ]
+    if invalid_model_ids:
+        parser.error(
+            "invalid model id(s): "
+            + ", ".join(invalid_model_ids)
+            + ". Choose from "
+            + ", ".join(DEFAULT_MODEL_IDS)
+        )
 
     receipts = download_models(
         manifest_dir=options.manifest_dir,
         manager=ModelManager(options.model_root),
-        model_ids=options.model_ids,
+        model_ids=model_ids,
         accept_noncommercial=options.accept_noncommercial,
     )
     for receipt in receipts:
