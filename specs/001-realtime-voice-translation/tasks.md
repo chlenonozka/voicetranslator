@@ -76,7 +76,7 @@
 
 - [x] T052 [P] [US3] Write worker crash, cancellation and heartbeat tests in `tests/VoiceTranslator.IntegrationTests/Recovery/WorkerRecoveryTests.cs`
 - [x] T053 [P] [US3] Write CUDA OOM retry and cleanup tests in `worker/tests/test_recovery.py`
-- [ ] T054 [P] [US3] Write no-speech-persistence tests in `worker/tests/test_privacy.py` and `tests/VoiceTranslator.IntegrationTests/Privacy/`
+- [x] T054 [P] [US3] Write no-speech-persistence tests in `worker/tests/test_privacy.py` and `tests/VoiceTranslator.IntegrationTests/Privacy/`
 - [x] T055 [US3] Implement worker failure coordinator and two-second shutdown in `src/VoiceTranslator.Application/Orchestration/SessionFailureCoordinator.cs`
 - [x] T056 [US3] Implement OOM cleanup and one low-memory retry in `worker/voice_translator_worker/pipeline/recovery.py`
 - [ ] T057 [US3] Implement device-loss handling and stale-buffer disposal in `src/VoiceTranslator.Infrastructure.Audio/`
@@ -84,11 +84,11 @@
 
 ## Phase 8: Validation and packaging
 
-- [ ] T059 [P] Add .NET and Python formatting, tests, license checks, and secret scanning in `.github/workflows/ci.yml`
+- [x] T059 [P] Add .NET and Python formatting, tests, license checks, and secret scanning in `.github/workflows/ci.yml`
 - [ ] T060 Run all 16 language probes and record results in `specs/001-realtime-voice-translation/capability-results.md`
 - [ ] T061 Run RTX 3070 latency/VRAM tests and record p50/p90 in `specs/001-realtime-voice-translation/performance-results.md`
 - [ ] T062 Run meaning and speaker-similarity evaluation and record results in `specs/001-realtime-voice-translation/evaluation-results.md`
-- [ ] T063 Package .NET host plus managed Python worker bootstrap without model files in `src/VoiceTranslator.App/Package/`
+- [x] T063 Package .NET host plus managed Python worker bootstrap without model files in `src/VoiceTranslator.App/Package/`
 - [ ] T064 Execute `quickstart.md` and record final evidence in `specs/001-realtime-voice-translation/validation-results.md`
 
 ## Dependencies

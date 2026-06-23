@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dotnet:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore VoiceTranslator.slnx
+      - run: dotnet format VoiceTranslator.slnx --verify-no-changes --no-restore
+      - run: dotnet build VoiceTranslator.slnx -c Release --no-restore
+      - run: dotnet test VoiceTranslator.slnx -c Release --no-build --no-restore
+
+  python:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.11
+      - run: uv sync --project worker --extra test --locked
+      - run: uv run --project worker pytest worker/tests -q
+      - run: uv lock --project worker --check
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
