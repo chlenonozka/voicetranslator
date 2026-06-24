@@ -131,7 +131,10 @@ def create_app(
             )
         reference_wav = await request.body()
         _validate_upload_size(reference_wav)
-        session_id = active_pipeline.create_speaker_session(reference_wav)
+        session_id = await run_in_threadpool(
+            active_pipeline.create_speaker_session,
+            reference_wav,
+        )
         return {"sessionId": str(session_id)}
 
     @app.delete(
@@ -141,7 +144,10 @@ def create_app(
     )
     async def delete_speaker_session(session_id: UUID) -> Response:
         active_pipeline = _require_pipeline(pipeline)
-        active_pipeline.delete_speaker_session(session_id)
+        await run_in_threadpool(
+            active_pipeline.delete_speaker_session,
+            session_id,
+        )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.post(

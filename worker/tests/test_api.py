@@ -1,3 +1,4 @@
+from threading import Event, Thread
 from fastapi.testclient import TestClient
 from uuid import uuid4
 
@@ -70,6 +71,18 @@ class FakeConditioner:
     @staticmethod
     def create(reference_wav: bytes) -> object:
         assert reference_wav == b"reference-wav"
+        return object()
+
+
+class BlockingConditioner:
+    def __init__(self) -> None:
+        self.started = Event()
+        self.release = Event()
+
+    def create(self, reference_wav: bytes) -> object:
+        assert reference_wav == b"reference-wav"
+        self.started.set()
+        assert self.release.wait(timeout=2)
         return object()
 
 
@@ -148,6 +161,46 @@ def test_cancelled_request_id_is_rejected_before_inference() -> None:
     assert cancel_response.status_code == 202
     assert response.status_code == 409
     assert response.json()["detail"] == "request canceled"
+
+
+def test_health_responds_while_speaker_session_conditioning_runs() -> None:
+    sessions = SpeakerSessionStore()
+    conditioner = BlockingConditioner()
+    pipeline = PhrasePipeline(
+        conditioner=conditioner,
+        asr=FakeAsr(),
+        translator=FakeTextTranslator(),
+        synthesizer=XttsSynthesizer(FakeXttsEngine(), sessions),
+        sessions=sessions,
+        performance_profile="balanced",
+    )
+    headers = {"X-Worker-Token": "expected-token"}
+
+    with TestClient(create_app("expected-token", pipeline)) as client:
+        statuses: list[int] = []
+
+        def create_session() -> None:
+            response = client.post(
+                "/v1/speaker-sessions",
+                content=b"reference-wav",
+                headers={**headers, "Content-Type": "audio/wav"},
+            )
+            statuses.append(response.status_code)
+
+        thread = Thread(target=create_session)
+        thread.start()
+        assert conditioner.started.wait(timeout=2)
+
+        health_response = client.get(
+            "/v1/health",
+            headers=headers,
+        )
+
+        conditioner.release.set()
+        thread.join(timeout=2)
+
+        assert health_response.status_code == 200
+        assert statuses == [201]
 
 
 def test_shutdown_clears_sessions_and_unloads_models() -> None:
