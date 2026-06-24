@@ -171,8 +171,8 @@ class LazyLocalModelLoader:
         nllb_path = model_root / "nllb-600m"
         nllb_engine = Translator(
             str(nllb_path),
-            device="cuda",
-            compute_type="int8_float16",
+            device="cpu",
+            compute_type="int8",
         )
         tokenizer = AutoTokenizer.from_pretrained(
             str(nllb_path),

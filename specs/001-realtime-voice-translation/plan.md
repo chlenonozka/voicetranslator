@@ -97,8 +97,9 @@ tests/
 
 - faster-whisper starts with `medium`, CUDA `int8`; low-memory falls back to
   `small`, CUDA `int8`.
-- NLLB is converted to CTranslate2 and uses `int8_float16`; it is unloaded
-  outside translation.
+- NLLB is converted to CTranslate2 and uses CPU `int8` by default to avoid
+  requiring CUDA 12 `cublas64_12.dll` alongside the PyTorch CUDA 13 runtime; it
+  is unloaded outside translation.
 - XTTS-v2 is loaded for speaker conditioning/synthesis and released when the
   session ends.
 - GPU manager uses `torch.cuda.mem_get_info`, `memory_reserved`,

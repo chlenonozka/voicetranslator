@@ -1,7 +1,9 @@
 import io
 import shutil
+import sys
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,6 +15,8 @@ from voice_translator_worker.models.model_manager import (
 from voice_translator_worker.models.gpu_profiles import CudaReport, GpuProfile
 from voice_translator_worker.pipeline.asr import Recognition
 from voice_translator_worker.runtime import (
+    InMemoryCoquiXttsAdapter,
+    LazyLocalModelLoader,
     LoadedModelSet,
     RuntimeConfig,
     create_runtime_app,
@@ -143,6 +147,79 @@ def test_runtime_preflight_exposes_languages_when_pipeline_is_available(
     assert response.status_code == 200
     assert response.json()["ready"] is True
     assert len(response.json()["availableLanguages"]) == 16
+
+
+def test_lazy_loader_keeps_nllb_on_cpu_to_avoid_cuda12_cublas(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    translator_calls: list[dict[str, object]] = []
+
+    class RecordingTranslator:
+        def __init__(
+            self,
+            model_path: str,
+            *,
+            device: str,
+            compute_type: str,
+        ) -> None:
+            translator_calls.append(
+                {
+                    "model_path": model_path,
+                    "device": device,
+                    "compute_type": compute_type,
+                }
+            )
+
+    class RecordingWhisperModel:
+        def __init__(
+            self,
+            model_path: str,
+            *,
+            device: str,
+            compute_type: str,
+        ) -> None:
+            pass
+
+    class RecordingTokenizer:
+        @staticmethod
+        def from_pretrained(path: str, *, local_files_only: bool) -> object:
+            return SimpleNamespace()
+
+    monkeypatch.setitem(
+        sys.modules,
+        "ctranslate2",
+        SimpleNamespace(Translator=RecordingTranslator),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "faster_whisper",
+        SimpleNamespace(WhisperModel=RecordingWhisperModel),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "transformers",
+        SimpleNamespace(AutoTokenizer=RecordingTokenizer),
+    )
+    monkeypatch.setattr(
+        InMemoryCoquiXttsAdapter,
+        "load",
+        staticmethod(lambda model_root: FakeXttsEngine()),
+    )
+
+    LazyLocalModelLoader().load_profile(
+        profile="balanced",
+        whisper_model="medium",
+        model_root=tmp_path,
+    )
+
+    assert translator_calls == [
+        {
+            "model_path": str(tmp_path / "nllb-600m"),
+            "device": "cpu",
+            "compute_type": "int8",
+        }
+    ]
 
 
 def test_reference_wave_loader_reads_pcm16_without_torchaudio(
