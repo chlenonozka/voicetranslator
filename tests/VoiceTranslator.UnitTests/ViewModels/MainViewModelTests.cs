@@ -223,7 +223,7 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public void DeviceListSeparatesPhysicalAndVirtualOutputs()
+    public void DeviceListKeepsAllRenderDevicesSelectableForPhysicalOutput()
     {
         MainViewModel viewModel = new();
         var speakers = new AudioDeviceInfo("out-1", "Speakers", false);
@@ -231,10 +231,23 @@ public sealed class MainViewModelTests
 
         viewModel.UpdateDevices([], [speakers, cable]);
 
+        viewModel.PhysicalOutputs.Should().Equal(speakers, cable);
+        viewModel.VirtualOutputs.Should().ContainSingle().Which
+            .Should().Be(cable);
+    }
+
+    [Fact]
+    public void DeviceListFallsBackToAllRenderDevicesWhenNoVirtualCableIsDetected()
+    {
+        MainViewModel viewModel = new();
+        var speakers = new AudioDeviceInfo("out-1", "Speakers", false);
+
+        viewModel.UpdateDevices([], [speakers]);
+
         viewModel.PhysicalOutputs.Should().ContainSingle().Which
             .Should().Be(speakers);
         viewModel.VirtualOutputs.Should().ContainSingle().Which
-            .Should().Be(cable);
+            .Should().Be(speakers);
     }
 
     [Fact]

@@ -277,12 +277,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ArgumentNullException.ThrowIfNull(renderDevices);
 
         microphones = captureDevices;
-        physicalOutputs = renderDevices
-            .Where(device => !device.IsVirtual)
-            .ToArray();
-        virtualOutputs = renderDevices
+        physicalOutputs = renderDevices.ToArray();
+        AudioDeviceInfo[] detectedVirtualOutputs = renderDevices
             .Where(device => device.IsVirtual)
             .ToArray();
+        virtualOutputs = detectedVirtualOutputs.Length == 0
+            ? renderDevices.ToArray()
+            : detectedVirtualOutputs;
         OnPropertyChanged(nameof(Microphones));
         OnPropertyChanged(nameof(PhysicalOutputs));
         OnPropertyChanged(nameof(VirtualOutputs));

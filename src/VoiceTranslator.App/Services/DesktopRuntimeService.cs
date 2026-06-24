@@ -1,5 +1,7 @@
 using System.IO;
+using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Hosting;
@@ -69,7 +71,7 @@ public sealed class DesktopRuntimeService :
                 return;
             }
 
-            var endpoint = new Uri("http://127.0.0.1:8765");
+            var endpoint = ReserveLoopbackEndpoint();
             var launcher = new PythonWorkerLauncher(
                 new SystemWorkerProcessStarter(),
                 pythonExecutable,
@@ -375,6 +377,22 @@ public sealed class DesktopRuntimeService :
     {
         action();
         return Task.CompletedTask;
+    }
+
+    private static Uri ReserveLoopbackEndpoint()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, port: 0);
+        listener.Start();
+        try
+        {
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            return new Uri(
+                $"http://127.0.0.1:{port.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        }
+        finally
+        {
+            listener.Stop();
+        }
     }
 
     private static string FindWorkspaceRoot(string startDirectory)
