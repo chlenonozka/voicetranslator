@@ -204,14 +204,42 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
         string body = await response.Content
             .ReadAsStringAsync(cancellationToken)
             .ConfigureAwait(false);
-        string reason = string.IsNullOrWhiteSpace(body)
-            ? response.ReasonPhrase ?? "Worker request failed."
-            : body;
+        string reason = ExtractWorkerErrorReason(response, body);
         throw new HttpRequestException(
             $"Worker request failed with {(int)response.StatusCode} "
             + $"{response.StatusCode}: {reason}",
             inner: null,
             response.StatusCode);
+    }
+
+    private static string ExtractWorkerErrorReason(
+        HttpResponseMessage response,
+        string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return response.ReasonPhrase ?? "Worker request failed.";
+        }
+
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(body);
+            if (
+                document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty(
+                    "detail",
+                    out JsonElement detail))
+            {
+                return detail.ValueKind == JsonValueKind.String
+                    ? detail.GetString() ?? response.ReasonPhrase ?? body
+                    : detail.GetRawText();
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return body;
     }
 
     private static Guid ReadGuidHeader(

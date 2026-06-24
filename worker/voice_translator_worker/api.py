@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+import logging
 import sys
 from threading import Lock
 from typing import Annotated
@@ -32,6 +33,7 @@ from .models.gpu_profiles import release_torch_memory
 
 
 MAX_WAV_BYTES = 44 + (30 * 16_000 * 2)
+LOGGER = logging.getLogger(__name__)
 
 
 class RequestCancellationRegistry:
@@ -131,10 +133,16 @@ def create_app(
             )
         reference_wav = await request.body()
         _validate_upload_size(reference_wav)
-        session_id = await run_in_threadpool(
-            active_pipeline.create_speaker_session,
-            reference_wav,
-        )
+        try:
+            session_id = await run_in_threadpool(
+                active_pipeline.create_speaker_session,
+                reference_wav,
+            )
+        except Exception as error:
+            raise _worker_stage_error(
+                "speaker conditioning",
+                error,
+            ) from error
         return {"sessionId": str(session_id)}
 
     @app.delete(
@@ -198,7 +206,10 @@ def create_app(
             ) from error
         except Exception as error:
             if active_recovery is None or not active_recovery.is_oom(error):
-                raise
+                raise _worker_stage_error(
+                    "translation pipeline",
+                    error,
+                ) from error
             active_pipeline.clear()
             raise HTTPException(
                 status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
@@ -227,6 +238,18 @@ def create_app(
         return {"status": "cancellation-requested"}
 
     return app
+
+
+def _worker_stage_error(stage: str, error: Exception) -> HTTPException:
+    LOGGER.exception("%s failed", stage)
+    message = str(error).strip()
+    detail = f"{stage} failed: {type(error).__name__}"
+    if message:
+        detail += f": {message}"
+    return HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail=detail,
+    )
 
 
 def _require_pipeline(

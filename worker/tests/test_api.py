@@ -74,6 +74,12 @@ class FakeConditioner:
         return object()
 
 
+class FailingConditioner:
+    @staticmethod
+    def create(reference_wav: bytes) -> object:
+        raise RuntimeError("XTTS conditioning unavailable")
+
+
 class BlockingConditioner:
     def __init__(self) -> None:
         self.started = Event()
@@ -105,6 +111,17 @@ class FakeTextTranslator:
         assert target_code == "en"
         assert unload_after is True
         return "Hello"
+
+
+class FailingTextTranslator:
+    @staticmethod
+    def translate(
+        text: str,
+        target_code: str,
+        *,
+        unload_after: bool = False,
+    ) -> str:
+        raise RuntimeError("NLLB translation unavailable")
 
 
 class FakeXttsEngine:
@@ -201,6 +218,69 @@ def test_health_responds_while_speaker_session_conditioning_runs() -> None:
 
         assert health_response.status_code == 200
         assert statuses == [201]
+
+
+def test_speaker_conditioning_failure_returns_diagnostic_detail() -> None:
+    sessions = SpeakerSessionStore()
+    pipeline = PhrasePipeline(
+        conditioner=FailingConditioner(),
+        asr=FakeAsr(),
+        translator=FakeTextTranslator(),
+        synthesizer=XttsSynthesizer(FakeXttsEngine(), sessions),
+        sessions=sessions,
+        performance_profile="balanced",
+    )
+
+    with TestClient(create_app("expected-token", pipeline)) as client:
+        response = client.post(
+            "/v1/speaker-sessions",
+            content=b"reference-wav",
+            headers={
+                "X-Worker-Token": "expected-token",
+                "Content-Type": "audio/wav",
+            },
+        )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == (
+        "speaker conditioning failed: RuntimeError: "
+        "XTTS conditioning unavailable"
+    )
+
+
+def test_unknown_translation_failure_returns_diagnostic_detail() -> None:
+    sessions = SpeakerSessionStore()
+    pipeline = PhrasePipeline(
+        conditioner=FakeConditioner(),
+        asr=FakeAsr(),
+        translator=FailingTextTranslator(),
+        synthesizer=XttsSynthesizer(FakeXttsEngine(), sessions),
+        sessions=sessions,
+        performance_profile="balanced",
+    )
+    headers = {"X-Worker-Token": "expected-token"}
+
+    with TestClient(create_app("expected-token", pipeline)) as client:
+        create_response = client.post(
+            "/v1/speaker-sessions",
+            content=b"reference-wav",
+            headers={**headers, "Content-Type": "audio/wav"},
+        )
+        response = client.post(
+            "/v1/translate-phrase",
+            data={
+                "sessionId": create_response.json()["sessionId"],
+                "targetLanguage": "en",
+            },
+            files={"audio": ("phrase.wav", b"phrase-wav", "audio/wav")},
+            headers=headers,
+        )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == (
+        "translation pipeline failed: RuntimeError: "
+        "NLLB translation unavailable"
+    )
 
 
 def test_shutdown_clears_sessions_and_unloads_models() -> None:

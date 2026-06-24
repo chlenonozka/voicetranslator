@@ -68,7 +68,7 @@ public sealed class LocalWorkerTranslationClientTests
     }
 
     [Fact]
-    public async Task TranslatePhraseAsyncIncludesWorkerErrorBody()
+    public async Task TranslatePhraseAsyncIncludesWorkerJsonDetail()
     {
         var requestId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
@@ -90,7 +90,9 @@ public sealed class LocalWorkerTranslationClientTests
             CancellationToken.None);
 
         await translate.Should().ThrowAsync<HttpRequestException>()
-            .WithMessage("*500*XTTS failed to synthesize*");
+            .WithMessage(
+                "Worker request failed with 500 InternalServerError: "
+                + "XTTS failed to synthesize");
     }
 
     private static LocalWorkerClient CreateClient(
