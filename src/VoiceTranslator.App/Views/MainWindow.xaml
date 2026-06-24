@@ -142,7 +142,7 @@
                                      Margin="0,6,0,0"
                                      AutomationProperties.Name="Microphone level"
                                      Maximum="100"
-                                     Value="{Binding InputLevelPercent}" />
+                                     Value="{Binding InputLevelPercent, Mode=OneWay}" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1"
@@ -153,7 +153,7 @@
                                      Margin="0,6,0,0"
                                      AutomationProperties.Name="Output level"
                                      Maximum="100"
-                                     Value="{Binding OutputLevelPercent}" />
+                                     Value="{Binding OutputLevelPercent, Mode=OneWay}" />
                     </StackPanel>
                 </Grid>
 
