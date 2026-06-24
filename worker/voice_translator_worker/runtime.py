@@ -204,7 +204,8 @@ class InMemoryCoquiXttsAdapter:
 
     @staticmethod
     def load(model_root: Path) -> "InMemoryCoquiXttsAdapter":
-        from TTS.api import TTS
+        from TTS.tts.configs.xtts_config import XttsConfig
+        from TTS.tts.models.xtts import Xtts
 
         config_path = model_root / "config.json"
         checkpoint_path = model_root / "model.pth"
@@ -213,12 +214,17 @@ class InMemoryCoquiXttsAdapter:
                 "XTTS in-memory adapter requires config.json and model.pth."
             )
 
-        tts = TTS(
-            model_path=str(checkpoint_path),
-            config_path=str(config_path),
-            progress_bar=False,
-        ).to("cuda")
-        return InMemoryCoquiXttsAdapter(tts.synthesizer.tts_model)
+        config = XttsConfig()
+        config.load_json(str(config_path))
+        model = Xtts.init_from_config(config)
+        model.load_checkpoint(
+            config,
+            checkpoint_dir=str(model_root),
+            checkpoint_path=str(checkpoint_path),
+            eval=True,
+        )
+        model.to("cuda")
+        return InMemoryCoquiXttsAdapter(model)
 
     def create(self, reference_wav: bytes) -> object:
         waveform, sample_rate = _load_pcm16_wave(reference_wav)

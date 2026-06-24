@@ -301,6 +301,9 @@ wheels = [
 ]
 
 [package.optional-dependencies]
+codec = [
+    { name = "torchcodec" },
+]
 cuda = [
     { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32'" },
@@ -1835,6 +1838,17 @@ wheels = [
 ]
 
 [[package]]
+name = "torchcodec"
+version = "0.14.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/ee/f5b4d884e82c2f6e6ac2a5bb4b8713f12bfde6b95d73ffd97434f97a3f23/torchcodec-0.14.0-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:3f4a2670429667d72d3b4b011cae972a572a50f0942ca43df741ef8413ca6657", size = 4420091, upload-time = "2026-06-03T12:41:30.441Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/85/51e2834ab6848982d7c6fcf3d2248ad9499e8577a47fa8e98ec0a6a9531e/torchcodec-0.14.0-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:dc47f825ca376beebeec731b2b40d1ae51ce145edef82295946b6edec24412c5", size = 2671158, upload-time = "2026-06-03T12:41:31.796Z" },
+    { url = "https://files.pythonhosted.org/packages/46/87/ee8b2869a6c16c954c4c2259b4b765a98c78d2a695b5d3cfbebafe438a31/torchcodec-0.14.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:8dd63d5e5f7696b560619952a215a0b9565248a71c42cbea74b2a85282e8b841", size = 2932752, upload-time = "2026-06-03T12:41:33.272Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/2c/303871aee16fcf5caff54b81f4b3e9cda0ce12c64eb353da416dbdf1656b/torchcodec-0.14.0-cp311-cp311-win_amd64.whl", hash = "sha256:7bc8f6a54c2bda7144e7ae5ba70a34fdf544465fec21e037674e857cfe339b4b", size = 3135402, upload-time = "2026-06-03T12:41:34.808Z" },
+]
+
+[[package]]
 name = "tqdm"
 version = "4.68.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1971,7 +1985,7 @@ dependencies = [
 
 [package.optional-dependencies]
 ml = [
-    { name = "coqui-tts", extra = ["cuda"] },
+    { name = "coqui-tts", extra = ["codec", "cuda"] },
     { name = "ctranslate2" },
     { name = "faster-whisper" },
     { name = "huggingface-hub" },
@@ -1991,7 +2005,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "coqui-tts", extras = ["cuda"], marker = "extra == 'ml'", specifier = ">=0.27.4,<0.28" },
+    { name = "coqui-tts", extras = ["cuda", "codec"], marker = "extra == 'ml'", specifier = ">=0.27.4,<0.28" },
     { name = "ctranslate2", marker = "extra == 'ml'", specifier = ">=4.6,<5" },
     { name = "fastapi", specifier = "==0.128.0" },
     { name = "faster-whisper", marker = "extra == 'ml'", specifier = ">=1.2,<2" },
