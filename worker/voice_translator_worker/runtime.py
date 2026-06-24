@@ -221,25 +221,15 @@ class InMemoryCoquiXttsAdapter:
         return InMemoryCoquiXttsAdapter(tts.synthesizer.tts_model)
 
     def create(self, reference_wav: bytes) -> object:
-        import torchaudio
-
-        waveform, sample_rate = torchaudio.load(
-            io.BytesIO(reference_wav)
-        )
-        if sample_rate != 24_000:
-            waveform = torchaudio.functional.resample(
-                waveform,
-                sample_rate,
-                24_000,
-            )
+        waveform, sample_rate = _load_pcm16_wave(reference_wav)
         return (
             self.model.get_gpt_cond_latents(
                 waveform,
-                sr=24_000,
+                sr=sample_rate,
             ),
             self.model.get_speaker_embedding(
                 waveform,
-                sr=24_000,
+                sr=sample_rate,
             ),
         )
 
@@ -347,6 +337,36 @@ def _has_verified_models(
         manager.verify_installed(model_id)
         for model_id in REQUIRED_MODEL_IDS
     )
+
+
+def _load_pcm16_wave(reference_wav: bytes) -> tuple[object, int]:
+    import torch
+
+    with wave.open(io.BytesIO(reference_wav), "rb") as wav:
+        channel_count = wav.getnchannels()
+        sample_width = wav.getsampwidth()
+        sample_rate = wav.getframerate()
+        pcm = wav.readframes(wav.getnframes())
+
+    if sample_width != 2:
+        raise ValueError("reference WAV must be 16-bit PCM")
+    if channel_count < 1:
+        raise ValueError("reference WAV must contain at least one channel")
+    if not pcm:
+        raise ValueError("reference WAV contains no samples")
+
+    sample_bytes = sample_width * channel_count
+    if len(pcm) % sample_bytes != 0:
+        raise ValueError("reference WAV payload is truncated")
+
+    waveform = torch.frombuffer(
+        bytearray(pcm),
+        dtype=torch.int16,
+    ).to(dtype=torch.float32)
+    waveform = waveform / 32768.0
+    if channel_count > 1:
+        waveform = waveform.reshape(-1, channel_count).mean(dim=1)
+    return waveform.unsqueeze(0), sample_rate
 
 
 def _inspect_runtime_cuda() -> CudaReport:

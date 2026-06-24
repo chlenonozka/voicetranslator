@@ -1,6 +1,9 @@
+import io
 import shutil
+import wave
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from voice_translator_worker.models.model_manager import (
@@ -14,6 +17,7 @@ from voice_translator_worker.runtime import (
     RuntimeConfig,
     create_runtime_app,
     create_runtime_pipeline,
+    _load_pcm16_wave,
 )
 
 
@@ -139,6 +143,80 @@ def test_runtime_preflight_exposes_languages_when_pipeline_is_available(
     assert response.status_code == 200
     assert response.json()["ready"] is True
     assert len(response.json()["availableLanguages"]) == 16
+
+
+def test_reference_wave_loader_reads_pcm16_without_torchaudio(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_import = __import__
+
+    def guarded_import(
+        name: str,
+        *args: object,
+        **kwargs: object,
+    ) -> object:
+        if name == "torchaudio":
+            raise AssertionError("reference WAV loading must not use torchaudio")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", guarded_import)
+    reference_wav = create_pcm16_wave(
+        sample_rate=16_000,
+        channel_count=1,
+        samples=[0, 32767, -32768],
+    )
+
+    waveform, sample_rate = _load_pcm16_wave(reference_wav)
+
+    assert sample_rate == 16_000
+    assert tuple(waveform.shape) == (1, 3)
+    assert waveform.tolist()[0] == pytest.approx(
+        [0, 32767 / 32768, -1],
+    )
+
+
+def test_reference_wave_loader_rejects_non_pcm16() -> None:
+    reference_wav = create_pcm8_wave(
+        sample_rate=16_000,
+        samples=[128, 255],
+    )
+
+    with pytest.raises(ValueError, match="16-bit PCM"):
+        _load_pcm16_wave(reference_wav)
+
+
+def create_pcm16_wave(
+    *,
+    sample_rate: int,
+    channel_count: int,
+    samples: list[int],
+) -> bytes:
+    output = io.BytesIO()
+    with wave.open(output, "wb") as wav:
+        wav.setnchannels(channel_count)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(
+            b"".join(
+                sample.to_bytes(2, "little", signed=True)
+                for sample in samples
+            )
+        )
+    return output.getvalue()
+
+
+def create_pcm8_wave(
+    *,
+    sample_rate: int,
+    samples: list[int],
+) -> bytes:
+    output = io.BytesIO()
+    with wave.open(output, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(1)
+        wav.setframerate(sample_rate)
+        wav.writeframes(bytes(samples))
+    return output.getvalue()
 
 
 def create_verified_config(tmp_path: Path) -> RuntimeConfig:
