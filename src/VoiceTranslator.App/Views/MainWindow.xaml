@@ -128,6 +128,47 @@
 
             <StackPanel Grid.Row="3"
                         Margin="0,22,0,0">
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0"
+                                Margin="0,0,8,0">
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Microphone level" />
+                        <ProgressBar Height="16"
+                                     Margin="0,6,0,0"
+                                     AutomationProperties.Name="Microphone level"
+                                     Maximum="100"
+                                     Value="{Binding InputLevelPercent}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                Margin="8,0,0,0">
+                        <TextBlock FontWeight="SemiBold"
+                                   Text="Output level" />
+                        <ProgressBar Height="16"
+                                     Margin="0,6,0,0"
+                                     AutomationProperties.Name="Output level"
+                                     Maximum="100"
+                                     Value="{Binding OutputLevelPercent}" />
+                    </StackPanel>
+                </Grid>
+
+                <Border Padding="12"
+                        Margin="0,0,0,12"
+                        Background="#FFF8FBF0"
+                        BorderBrush="#FFB7C98C"
+                        BorderThickness="1"
+                        CornerRadius="4">
+                    <TextBlock AutomationProperties.LiveSetting="Polite"
+                               AutomationProperties.Name="Translation activity"
+                               Text="{Binding ActivityMessage}"
+                               TextWrapping="Wrap" />
+                </Border>
+
                 <Border Padding="12"
                         Background="#FFF3F6FA"
                         BorderBrush="#FF9AAFC4"

@@ -44,6 +44,12 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
 
     public event Action<Exception>? Failed;
 
+    public event Action<double>? InputLevelChanged;
+
+    public event Action<double>? OutputLevelChanged;
+
+    public event Action<string>? ActivityChanged;
+
     public void Start()
     {
         ObjectDisposedException.ThrowIf(
@@ -56,6 +62,8 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
 
         capture.AudioAvailable += OnAudioAvailable;
         consumer = ConsumeAsync(cancellation.Token);
+        ActivityChanged?.Invoke(
+            "Listening. First completed phrase becomes the voice reference.");
         capture.StartCapture();
     }
 
@@ -125,9 +133,11 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
             byte[] normalized = Pcm16Normalizer.Normalize(
                 eventArgs.Audio,
                 capture.WaveFormat);
+            InputLevelChanged?.Invoke(CalculatePcm16LevelPercent(normalized));
             byte[]? phrase = segmenter.Push(normalized);
             if (phrase is not null)
             {
+                ActivityChanged?.Invoke("Phrase captured.");
                 _ = completedPhrases.Writer.TryWrite(phrase);
             }
         }
@@ -147,6 +157,7 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
             {
                 if (speakerSessionId is null)
                 {
+                    ActivityChanged?.Invoke("Creating voice reference.");
                     speakerSessionId = await worker
                         .CreateSpeakerSessionAsync(
                             WaveMemoryCodec.EncodeWorkerWave(pcm),
@@ -157,11 +168,17 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
                             worker,
                             speakerSessionId.Value,
                             targetLanguage),
-                        output,
+                        new ReportingPlaybackSink(
+                            output,
+                            OutputLevelChanged,
+                            ActivityChanged),
                         queueCapacity: 2);
+                    ActivityChanged?.Invoke(
+                        "Voice reference ready. Speak the next Russian phrase to translate.");
                     continue;
                 }
 
+                ActivityChanged?.Invoke("Translating phrase.");
                 pipeline!.Enqueue(new Phrase(
                     Guid.NewGuid().ToString("D"),
                     pcm));
@@ -177,6 +194,48 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
         catch (Exception error)
         {
             Failed?.Invoke(error);
+        }
+    }
+
+    private static double CalculatePcm16LevelPercent(byte[] pcm)
+    {
+        if (pcm.Length < sizeof(short))
+        {
+            return 0;
+        }
+
+        double sumSquares = 0;
+        int sampleCount = pcm.Length / sizeof(short);
+        for (int index = 0; index < sampleCount; index++)
+        {
+            short sample = BitConverter.ToInt16(
+                pcm,
+                index * sizeof(short));
+            double normalized = sample / 32768.0;
+            sumSquares += normalized * normalized;
+        }
+
+        double rms = Math.Sqrt(sumSquares / sampleCount);
+        return Math.Clamp(rms * 200, 0, 100);
+    }
+
+    private sealed class ReportingPlaybackSink(
+        IAudioPlaybackSink inner,
+        Action<double>? outputLevelChanged,
+        Action<string>? activityChanged) : IAudioPlaybackSink
+    {
+        public void Play(byte[] pcm)
+        {
+            outputLevelChanged?.Invoke(
+                CalculatePcm16LevelPercent(pcm));
+            activityChanged?.Invoke("Playing translated speech.");
+            inner.Play(pcm);
+        }
+
+        public void StopPlayback()
+        {
+            outputLevelChanged?.Invoke(0);
+            inner.StopPlayback();
         }
     }
 }

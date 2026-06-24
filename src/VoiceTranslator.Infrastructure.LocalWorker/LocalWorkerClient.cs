@@ -73,7 +73,8 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
                 content: null,
                 cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        await EnsureWorkerSuccessAsync(response, cancellationToken)
+            .ConfigureAwait(false);
         return await response.Content
             .ReadFromJsonAsync<WorkerPreflightReport>(
                 cancellationToken: cancellationToken)
@@ -95,7 +96,8 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
                 content,
                 cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        await EnsureWorkerSuccessAsync(response, cancellationToken)
+            .ConfigureAwait(false);
         var payload = await response.Content
             .ReadFromJsonAsync<SpeakerSessionResponse>(
                 cancellationToken: cancellationToken)
@@ -114,7 +116,8 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
                 $"v1/speaker-sessions/{sessionId:D}",
                 cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        await EnsureWorkerSuccessAsync(response, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<PhraseTranslationResult> TranslatePhraseAsync(
@@ -146,7 +149,8 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
         using var response = await httpClient
             .SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        await EnsureWorkerSuccessAsync(response, cancellationToken)
+            .ConfigureAwait(false);
         var wav = await response.Content
             .ReadAsByteArrayAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -172,7 +176,8 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
                 content: null,
                 cancellationToken)
             .ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        await EnsureWorkerSuccessAsync(response, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public void Dispose() => httpClient.Dispose();
@@ -185,6 +190,28 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
             ? values.Single()
             : throw new InvalidOperationException(
                 $"Worker response is missing {name}.");
+    }
+
+    private static async Task EnsureWorkerSuccessAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        string body = await response.Content
+            .ReadAsStringAsync(cancellationToken)
+            .ConfigureAwait(false);
+        string reason = string.IsNullOrWhiteSpace(body)
+            ? response.ReasonPhrase ?? "Worker request failed."
+            : body;
+        throw new HttpRequestException(
+            $"Worker request failed with {(int)response.StatusCode} "
+            + $"{response.StatusCode}: {reason}",
+            inner: null,
+            response.StatusCode);
     }
 
     private static Guid ReadGuidHeader(

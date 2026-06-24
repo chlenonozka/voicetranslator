@@ -67,6 +67,32 @@ public sealed class LocalWorkerTranslationClientTests
         handler.LastBody.Should().Contain("phrase.wav");
     }
 
+    [Fact]
+    public async Task TranslatePhraseAsyncIncludesWorkerErrorBody()
+    {
+        var requestId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var response = new HttpResponseMessage(
+            HttpStatusCode.InternalServerError)
+        {
+            Content = new StringContent(
+                """{"detail":"XTTS failed to synthesize"}""",
+                Encoding.UTF8,
+                "application/json"),
+        };
+        using var client = CreateClient(new QueueHandler(response));
+
+        Func<Task> translate = () => client.TranslatePhraseAsync(
+            sessionId,
+            "en",
+            [9, 8, 7],
+            requestId,
+            CancellationToken.None);
+
+        await translate.Should().ThrowAsync<HttpRequestException>()
+            .WithMessage("*500*XTTS failed to synthesize*");
+    }
+
     private static LocalWorkerClient CreateClient(
         HttpMessageHandler handler)
     {

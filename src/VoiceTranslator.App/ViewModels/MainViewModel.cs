@@ -31,6 +31,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private SessionState state = SessionState.Draft;
     private string performanceProfile = "Unavailable";
     private string modelInventorySummary = "Model inventory unavailable";
+    private string activityMessage = "Waiting for setup.";
+    private double inputLevelPercent;
+    private double outputLevelPercent;
     private string? outputWarning;
     private string? failureMessage;
 
@@ -183,6 +186,54 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public string ActivityMessage
+    {
+        get => activityMessage;
+        private set
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            if (activityMessage == value)
+            {
+                return;
+            }
+
+            activityMessage = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double InputLevelPercent
+    {
+        get => inputLevelPercent;
+        private set
+        {
+            double normalized = ClampPercent(value);
+            if (Math.Abs(inputLevelPercent - normalized) < 0.1)
+            {
+                return;
+            }
+
+            inputLevelPercent = normalized;
+            OnPropertyChanged();
+        }
+    }
+
+    public double OutputLevelPercent
+    {
+        get => outputLevelPercent;
+        private set
+        {
+            double normalized = ClampPercent(value);
+            if (Math.Abs(outputLevelPercent - normalized) < 0.1)
+            {
+                return;
+            }
+
+            outputLevelPercent = normalized;
+            OnPropertyChanged();
+        }
+    }
+
     public string ModelPreflightState =>
         IsModelPreflightPassed ? "Models verified" : "Models require preflight";
 
@@ -309,6 +360,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             SelectedVirtualOutput = null;
         }
+
+        SelectedMicrophone ??= SelectDefaultDevice(microphones);
+        SelectedPhysicalOutput ??= SelectDefaultDevice(physicalOutputs);
+        SelectedVirtualOutput ??= SelectDefaultDevice(virtualOutputs);
     }
 
     public void ApplyPreflight(WorkerPreflightReport report)
@@ -316,6 +371,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ArgumentNullException.ThrowIfNull(report);
 
         failureMessage = null;
+        ActivityMessage = "Worker ready. Select devices and press Start.";
         var availableCodes = report.AvailableLanguages.ToHashSet(
             StringComparer.Ordinal);
         targetLanguages = TargetLanguage.All
@@ -350,7 +406,17 @@ public sealed class MainViewModel : INotifyPropertyChanged
         failureMessage = message;
         IsWorkerReady = false;
         State = SessionState.Faulted;
+        ActivityMessage = "Worker failed.";
     }
+
+    public void ReportInputLevel(double percent) =>
+        InputLevelPercent = percent;
+
+    public void ReportOutputLevel(double percent) =>
+        OutputLevelPercent = percent;
+
+    public void ReportActivity(string message) =>
+        ActivityMessage = message;
 
     private bool CanStart()
     {
@@ -382,6 +448,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         State = SessionState.Listening;
+        ActivityMessage = "Listening. First completed phrase becomes the voice reference.";
         StartRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -394,6 +461,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         SpeakerConsentAccepted = false;
         State = SessionState.Stopped;
+        InputLevelPercent = 0;
+        OutputLevelPercent = 0;
+        ActivityMessage = "Stopped.";
         StopRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -406,6 +476,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         SpeakerConsentAccepted = false;
         State = SessionState.Draft;
+        InputLevelPercent = 0;
+        OutputLevelPercent = 0;
+        ActivityMessage = "Waiting for setup.";
     }
 
     private void SetPrerequisite<T>(
@@ -475,6 +548,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(
             this,
             new PropertyChangedEventArgs(propertyName));
+    }
+
+    private static double ClampPercent(double value)
+    {
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            return 0;
+        }
+
+        return Math.Clamp(value, 0, 100);
+    }
+
+    private static AudioDeviceInfo? SelectDefaultDevice(
+        IReadOnlyList<AudioDeviceInfo> devices)
+    {
+        foreach (AudioDeviceInfo device in devices)
+        {
+            if (device.IsDefault)
+            {
+                return device;
+            }
+        }
+
+        return devices.Count > 0 ? devices[0] : null;
     }
 
     private sealed class RelayCommand(

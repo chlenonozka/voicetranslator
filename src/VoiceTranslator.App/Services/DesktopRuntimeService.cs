@@ -289,6 +289,9 @@ public sealed class DesktopRuntimeService :
                 output,
                 targetLanguage);
             session.Failed += OnTranslationSessionFailed;
+            session.InputLevelChanged += OnInputLevelChanged;
+            session.OutputLevelChanged += OnOutputLevelChanged;
+            session.ActivityChanged += OnActivityChanged;
             translationSession = session;
             session.Start();
         }
@@ -306,6 +309,9 @@ public sealed class DesktopRuntimeService :
             if (translationSession is not null)
             {
                 translationSession.Failed -= OnTranslationSessionFailed;
+                translationSession.InputLevelChanged -= OnInputLevelChanged;
+                translationSession.OutputLevelChanged -= OnOutputLevelChanged;
+                translationSession.ActivityChanged -= OnActivityChanged;
                 await translationSession.DisposeAsync().ConfigureAwait(false);
                 translationSession = null;
             }
@@ -330,6 +336,24 @@ public sealed class DesktopRuntimeService :
         await StopTranslationSessionAsync().ConfigureAwait(false);
         await ReportFailureAsync(
                 $"Audio translation failed: {error.Message}")
+            .ConfigureAwait(false);
+    }
+
+    private async void OnInputLevelChanged(double percent)
+    {
+        await DispatchAsync(() => viewModel.ReportInputLevel(percent))
+            .ConfigureAwait(false);
+    }
+
+    private async void OnOutputLevelChanged(double percent)
+    {
+        await DispatchAsync(() => viewModel.ReportOutputLevel(percent))
+            .ConfigureAwait(false);
+    }
+
+    private async void OnActivityChanged(string message)
+    {
+        await DispatchAsync(() => viewModel.ReportActivity(message))
             .ConfigureAwait(false);
     }
 

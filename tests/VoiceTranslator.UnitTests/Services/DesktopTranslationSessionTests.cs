@@ -19,6 +19,12 @@ public sealed class DesktopTranslationSessionTests
             capture,
             output,
             "en");
+        List<string> activities = [];
+        List<double> inputLevels = [];
+        List<double> outputLevels = [];
+        session.ActivityChanged += activities.Add;
+        session.InputLevelChanged += inputLevels.Add;
+        session.OutputLevelChanged += outputLevels.Add;
         session.Start();
 
         capture.EmitPhrase();
@@ -32,6 +38,11 @@ public sealed class DesktopTranslationSessionTests
         worker.TranslatedWave.Should().StartWith(
             [(byte)'R', (byte)'I', (byte)'F', (byte)'F']);
         output.Pcm.Should().Equal(7, 0, 8, 0);
+        inputLevels.Should().Contain(level => level > 0);
+        outputLevels.Should().Contain(level => level > 0);
+        activities.Should().Contain("Phrase captured.");
+        activities.Should().Contain("Translating phrase.");
+        activities.Should().Contain("Playing translated speech.");
     }
 
     private sealed class FakeCaptureSource : IAudioCaptureSource

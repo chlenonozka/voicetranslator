@@ -145,6 +145,41 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public void UpdateDevicesSelectsSystemDefaultInputAndOutput()
+    {
+        MainViewModel viewModel = new();
+        var microphone = new AudioDeviceInfo(
+            "mic-default",
+            "Default microphone",
+            false,
+            IsDefault: true);
+        var speakers = new AudioDeviceInfo(
+            "out-default",
+            "Default speakers",
+            false,
+            IsDefault: true);
+
+        viewModel.UpdateDevices([microphone], [speakers]);
+
+        viewModel.SelectedMicrophone.Should().Be(microphone);
+        viewModel.SelectedPhysicalOutput.Should().Be(speakers);
+    }
+
+    [Fact]
+    public void LevelIndicatorsClampToPercentRange()
+    {
+        MainViewModel viewModel = new();
+
+        viewModel.ReportInputLevel(125);
+        viewModel.ReportOutputLevel(double.NaN);
+        viewModel.ReportActivity("Translating phrase.");
+
+        viewModel.InputLevelPercent.Should().Be(100);
+        viewModel.OutputLevelPercent.Should().Be(0);
+        viewModel.ActivityMessage.Should().Be("Translating phrase.");
+    }
+
+    [Fact]
     public void ApplyPreflightUpdatesWorkerAndModelReadiness()
     {
         MainViewModel viewModel = new();
