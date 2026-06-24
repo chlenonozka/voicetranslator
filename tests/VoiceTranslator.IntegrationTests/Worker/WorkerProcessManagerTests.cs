@@ -1,4 +1,6 @@
 using FluentAssertions;
+using VoiceTranslator.Application.Orchestration;
+using VoiceTranslator.Application.Ports;
 using VoiceTranslator.Infrastructure.LocalWorker;
 
 namespace VoiceTranslator.IntegrationTests.Worker;
@@ -39,6 +41,29 @@ public sealed class WorkerProcessManagerTests
         healthProbe.CallCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task StartAsyncCanDelayHeartbeatMonitoringUntilAfterPreflight()
+    {
+        var launcher = new FakeWorkerLauncher();
+        var healthProbe = new FakeWorkerHealthProbe();
+        await using var manager = new WorkerProcessManager(
+            launcher,
+            healthProbe,
+            failureObserver: new RecordingFailureObserver(),
+            heartbeatInterval: TimeSpan.FromMilliseconds(10),
+            startMonitoringOnStart: false);
+
+        WorkerHandle handle = await manager.StartAsync(
+            CancellationToken.None);
+
+        healthProbe.HealthCheckCount.Should().Be(0);
+
+        manager.StartMonitoring(handle);
+        await healthProbe.WaitForHealthCheckAsync();
+
+        healthProbe.HealthCheckCount.Should().BeGreaterThan(0);
+    }
+
     private sealed class FakeWorkerLauncher : IWorkerLauncher
     {
         private int nextProcessId = 1;
@@ -70,6 +95,9 @@ public sealed class WorkerProcessManagerTests
         public Uri? Endpoint { get; private set; }
         public string? Token { get; private set; }
         public int CallCount { get; private set; }
+        public int HealthCheckCount { get; private set; }
+        private readonly TaskCompletionSource healthChecked =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task WaitUntilReadyAsync(
             Uri endpoint,
@@ -85,6 +113,21 @@ public sealed class WorkerProcessManagerTests
         public Task CheckHealthAsync(
             Uri endpoint,
             string token,
+            CancellationToken cancellationToken)
+        {
+            HealthCheckCount++;
+            healthChecked.TrySetResult();
+            return Task.CompletedTask;
+        }
+
+        public Task WaitForHealthCheckAsync() =>
+            healthChecked.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    private sealed class RecordingFailureObserver : ISessionFailureObserver
+    {
+        public Task OnSessionFailureAsync(
+            SessionFailure failure,
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }

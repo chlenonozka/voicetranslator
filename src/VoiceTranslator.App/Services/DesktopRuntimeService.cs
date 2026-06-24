@@ -88,7 +88,8 @@ public sealed class DesktopRuntimeService :
                 launcher,
                 healthProbe,
                 endpoint,
-                failureObserver: this);
+                failureObserver: this,
+                startMonitoringOnStart: false);
             WorkerHandle handle = await workerManager
                 .StartAsync(cancellationToken)
                 .ConfigureAwait(false);
@@ -104,10 +105,18 @@ public sealed class DesktopRuntimeService :
                 .ConfigureAwait(false);
             await DispatchAsync(() => viewModel.ApplyPreflight(report))
                 .ConfigureAwait(false);
+            workerManager.StartMonitoring(handle);
         }
         catch (Exception error)
             when (!cancellationToken.IsCancellationRequested)
         {
+            if (workerManager is not null)
+            {
+                await workerManager
+                    .StopAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+
             await ReportFailureAsync(
                     $"Local worker could not start: {error.Message}")
                 .ConfigureAwait(false);

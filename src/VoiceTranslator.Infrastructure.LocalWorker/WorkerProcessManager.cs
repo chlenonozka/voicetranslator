@@ -19,6 +19,7 @@ public sealed class WorkerProcessManager : IAsyncDisposable
     private readonly ISessionFailureObserver? failureObserver;
     private readonly TimeSpan heartbeatInterval;
     private readonly TimeSpan heartbeatTimeout;
+    private readonly bool startMonitoringOnStart;
     private LaunchedWorker? activeWorker;
     private CancellationTokenSource? monitorCancellation;
     private Task? monitorTask;
@@ -29,7 +30,8 @@ public sealed class WorkerProcessManager : IAsyncDisposable
         Uri? endpoint = null,
         ISessionFailureObserver? failureObserver = null,
         TimeSpan? heartbeatInterval = null,
-        TimeSpan? heartbeatTimeout = null)
+        TimeSpan? heartbeatTimeout = null,
+        bool startMonitoringOnStart = true)
     {
         this.launcher = launcher;
         this.healthProbe = healthProbe;
@@ -39,6 +41,7 @@ public sealed class WorkerProcessManager : IAsyncDisposable
             heartbeatInterval ?? DefaultHeartbeatInterval;
         this.heartbeatTimeout =
             heartbeatTimeout ?? DefaultHeartbeatTimeout;
+        this.startMonitoringOnStart = startMonitoringOnStart;
 
         if (this.heartbeatInterval < TimeSpan.Zero)
         {
@@ -82,7 +85,11 @@ public sealed class WorkerProcessManager : IAsyncDisposable
                     handle.Token,
                     cancellationToken)
                 .ConfigureAwait(false);
-            StartMonitoring(activeWorker, handle);
+            if (this.startMonitoringOnStart)
+            {
+                StartMonitoring(handle);
+            }
+
             return handle;
         }
         catch
@@ -134,11 +141,17 @@ public sealed class WorkerProcessManager : IAsyncDisposable
         await StopAsync(CancellationToken.None).ConfigureAwait(false);
     }
 
-    private void StartMonitoring(
-        LaunchedWorker worker,
-        WorkerHandle handle)
+    public void StartMonitoring(WorkerHandle handle)
     {
         if (failureObserver is null)
+        {
+            return;
+        }
+
+        LaunchedWorker worker = activeWorker
+            ?? throw new InvalidOperationException(
+                "Worker is not running.");
+        if (monitorTask is not null)
         {
             return;
         }
@@ -192,6 +205,8 @@ public sealed class WorkerProcessManager : IAsyncDisposable
     {
         while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (heartbeatInterval > TimeSpan.Zero)
             {
                 await Task
