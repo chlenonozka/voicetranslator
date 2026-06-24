@@ -47,8 +47,8 @@ if not exist "%USERPROFILE%\.voice-translator\models\verified-models.json" (
     exit /b 1
 )
 
-echo Cleaning up stale local worker processes...
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$worker = (Resolve-Path '%WORKER_PY%').Path; Get-Process python -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $worker } | ForEach-Object { & taskkill.exe /PID $_.Id /T /F | Out-Null }"
+echo Cleaning up stale local app and worker processes...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$root = (Resolve-Path '%ROOT%').Path; Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'dotnet.exe' -or $_.Name -eq 'python.exe') -and $_.CommandLine -like ('*' + $root + '*') } | ForEach-Object { & taskkill.exe /PID $_.ProcessId /T /F | Out-Null }"
 
 echo Starting Voice Translator...
 echo If the app closes with an error, this window will show the exit code.
