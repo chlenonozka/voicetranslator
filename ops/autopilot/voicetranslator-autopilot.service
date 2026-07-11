@@ -1,0 +1,17 @@
+[Unit]
+Description=VoiceTranslator Jules-to-GitHub reconciliation cycle
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/voicetranslator-autopilot.env
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+EnvironmentFile=/etc/voicetranslator-autopilot.env
+ExecStart=/usr/bin/python3 /opt/voicetranslator-autopilot/autopilot.py run
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/opt/voicetranslator-autopilot /var/lib/voicetranslator-autopilot

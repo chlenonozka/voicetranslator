@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly ENV_FILE=/etc/voicetranslator-autopilot.env
+readonly STATE_DIR=/var/lib/voicetranslator-autopilot
+
+if [[ ${EUID} -ne 0 ]]; then
+  echo "Run this command as root." >&2
+  exit 1
+fi
+
+read -r -s -p "Paste a Jules API key (hidden): " jules_key
+echo
+read -r -s -p "Paste a fine-grained GitHub token (hidden): " github_token
+echo
+
+if [[ -z ${jules_key} || -z ${github_token} ]]; then
+  echo "Both secrets are required; no configuration was written." >&2
+  exit 1
+fi
+
+umask 077
+install -d -o root -g root -m 0700 "${STATE_DIR}"
+temporary_file=$(mktemp "${ENV_FILE}.XXXXXX")
+trap 'rm -f "${temporary_file}"' EXIT
+{
+  printf 'JULES_API_KEY=%s\n' "${jules_key}"
+  printf 'GITHUB_TOKEN=%s\n' "${github_token}"
+  printf 'PROJECT_GITHUB_OWNER=chlenonozka\n'
+  printf 'PROJECT_GITHUB_REPOSITORY=voicetranslator\n'
+  printf 'PROJECT_GITHUB_BRANCH=main\n'
+  printf 'PROJECT_AUTOPILOT_STATE_DIR=%s\n' "${STATE_DIR}"
+} >"${temporary_file}"
+chown root:root "${temporary_file}"
+chmod 0600 "${temporary_file}"
+mv -f "${temporary_file}" "${ENV_FILE}"
+trap - EXIT
+unset jules_key github_token
+
+systemctl enable --now voicetranslator-autopilot.timer
+systemctl start voicetranslator-autopilot.service
+echo "Configuration saved. The first reconciliation cycle has started."

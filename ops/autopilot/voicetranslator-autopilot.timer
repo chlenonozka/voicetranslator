@@ -1,0 +1,12 @@
+[Unit]
+Description=Run VoiceTranslator Jules-to-GitHub reconciliation every two minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=30s
+Persistent=true
+Unit=voicetranslator-autopilot.service
+
+[Install]
+WantedBy=timers.target
