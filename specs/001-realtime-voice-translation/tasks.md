@@ -70,7 +70,7 @@
 - [x] T048 [US2] Implement device enumeration and virtual/dual output router in `src/VoiceTranslator.Infrastructure.Audio/Routing/`
 - [x] T049 [US2] Implement channel test and feedback warning in `src/VoiceTranslator.Application/Orchestration/OutputChannelTestService.cs`
 - [x] T050 [US2] Complete model/device/language/output controls in `src/VoiceTranslator.App/Views/MainWindow.xaml`
-- [ ] T051 [US2] Add all-16-language and output routing E2E tests in `tests/VoiceTranslator.WindowsE2ETests/`
+- [x] T051 [US2] Add all-16-language and output routing E2E tests in `tests/VoiceTranslator.WindowsE2ETests/`
 
 ## Phase 7: User Story 3 — Recovery and privacy
 
