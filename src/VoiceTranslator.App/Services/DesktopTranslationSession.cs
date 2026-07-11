@@ -6,7 +6,7 @@ using VoiceTranslator.Infrastructure.Audio.Capture;
 
 namespace VoiceTranslator.App.Services;
 
-public sealed class DesktopTranslationSession : IAsyncDisposable
+public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStopper
 {
     private readonly ILocalTranslationWorker worker;
     private readonly IAudioCaptureSource capture;
@@ -69,6 +69,12 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
         ActivityChanged?.Invoke(
             "Listening. First completed phrase becomes the voice reference.");
         capture.StartCapture();
+    }
+
+    public Task StopSessionAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return StopAsync();
     }
 
     public async Task StopAsync()

@@ -154,6 +154,36 @@ public sealed class DesktopRuntimeService :
         SessionFailure failure,
         CancellationToken cancellationToken)
     {
+        await sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (translationSession is not null)
+            {
+                var coordinator = new SessionFailureCoordinator(translationSession);
+                await coordinator.OnSessionFailureAsync(failure, cancellationToken).ConfigureAwait(false);
+
+                translationSession.Failed -= OnTranslationSessionFailed;
+                translationSession.InputLevelChanged -= OnInputLevelChanged;
+                translationSession.OutputLevelChanged -= OnOutputLevelChanged;
+                translationSession.ActivityChanged -= OnActivityChanged;
+                await translationSession.DisposeAsync().ConfigureAwait(false);
+                translationSession = null;
+            }
+
+            sessionCaptureDevice?.Dispose();
+            sessionCaptureDevice = null;
+            sessionOutputDevice?.Dispose();
+            sessionOutputDevice = null;
+            sessionVirtualOutputDevice?.Dispose();
+            sessionVirtualOutputDevice = null;
+            sessionDeviceEnumerator?.Dispose();
+            sessionDeviceEnumerator = null;
+        }
+        finally
+        {
+            sessionGate.Release();
+        }
+
         await ReportFailureAsync(
                 $"Local worker failure: {failure}. Restart is required.")
             .ConfigureAwait(false);
