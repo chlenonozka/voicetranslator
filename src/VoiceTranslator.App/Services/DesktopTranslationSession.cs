@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Threading.Channels;
 using VoiceTranslator.Application.Orchestration;
 using VoiceTranslator.Application.Ports;

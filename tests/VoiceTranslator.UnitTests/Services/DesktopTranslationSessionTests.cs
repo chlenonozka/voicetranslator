@@ -1,3 +1,5 @@
+using System.Net.Http;
+using VoiceTranslator.Application.Orchestration;
 using FluentAssertions;
 using NAudio.Wave;
 using VoiceTranslator.App.Services;
@@ -52,6 +54,90 @@ public sealed class DesktopTranslationSessionTests
         lock (activitiesLock) activities.ToArray().Should().Contain("Phrase captured.");
         lock (activitiesLock) activities.ToArray().Should().Contain("Translating phrase.");
         lock (activitiesLock) activities.ToArray().Should().Contain("Playing translated speech.");
+    }
+
+    [Fact]
+    public async Task GpuMemoryExhaustionReportsToCoordinator()
+    {
+        var worker = new OomWorker();
+        var capture = new FakeCaptureSource();
+        var output = new FakePlaybackSink();
+        var observer = new FakeSessionFailureObserver();
+        await using var session = new DesktopTranslationSession(
+            worker,
+            capture,
+            output,
+            "en",
+            observer);
+        session.Start();
+
+        capture.EmitPhrase();
+        await Task.Yield();
+        capture.EmitPhrase();
+        await observer.Signaled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        observer.Failure.Should().Be(SessionFailure.GpuMemoryExhausted);
+    }
+
+    private sealed class FakeSessionFailureObserver : ISessionFailureObserver
+    {
+        public TaskCompletionSource Signaled { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public SessionFailure? Failure { get; private set; }
+
+        public Task OnSessionFailureAsync(
+            SessionFailure failure,
+            CancellationToken cancellationToken)
+        {
+            Failure = failure;
+            Signaled.TrySetResult();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class OomWorker : ILocalTranslationWorker
+    {
+        public Task<Guid> CreateSpeakerSessionAsync(
+            byte[] referenceWav,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Guid.NewGuid());
+
+        public Task<PhraseTranslationResult> TranslatePhraseAsync(
+            Guid sessionId,
+            string targetLanguage,
+            byte[] phraseWav,
+            Guid requestId,
+            CancellationToken cancellationToken) =>
+            Task.FromException<PhraseTranslationResult>(
+                new HttpRequestException(
+                    "Worker request failed with 507 InsufficientStorage",
+                    inner: null,
+                    statusCode: System.Net.HttpStatusCode.InsufficientStorage));
+
+        public Task DeleteSpeakerSessionAsync(
+            Guid sessionId,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task CheckHealthAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task WaitUntilReadyAsync(CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<WorkerPreflightReport> PreflightAsync(
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task CancelAsync(
+            Guid requestId,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class FakeCaptureSource : IAudioCaptureSource
