@@ -67,8 +67,7 @@ public sealed class DesktopTranslationSessionTests
         // Emit first phrase to create speaker session
         capture.EmitPhrase();
 
-        // Wait a bit to ensure speaker session is created
-        await Task.Delay(100);
+        await worker.ReferenceCreated.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         // Emit second phrase to trigger translation
         capture.EmitPhrase();
@@ -97,10 +96,16 @@ public sealed class DesktopTranslationSessionTests
 
     private sealed class OomWorker : ILocalTranslationWorker
     {
+        public TaskCompletionSource ReferenceCreated { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public Task<Guid> CreateSpeakerSessionAsync(
             byte[] referenceWav,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(Guid.NewGuid());
+            CancellationToken cancellationToken)
+        {
+            ReferenceCreated.TrySetResult();
+            return Task.FromResult(Guid.NewGuid());
+        }
 
         public Task<PhraseTranslationResult> TranslatePhraseAsync(
             Guid sessionId,
