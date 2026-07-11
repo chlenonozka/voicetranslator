@@ -10,11 +10,26 @@ from voice_translator_worker.models.model_manager import LicenseNotAccepted
 def test_download_models_requires_noncommercial_acknowledgement(
     tmp_path: Path,
 ) -> None:
+    manifest_dir = tmp_path / "manifests"
+    manifest_dir.mkdir()
+    (manifest_dir / "nllb-600m.json").write_text(
+        """
+        {
+          "id": "nllb-600m",
+          "repo_id": "owner/model",
+          "revision": "0000000000000000000000000000000000000000",
+          "license": "CC-BY-NC-4.0",
+          "commercial_use_allowed": false,
+          "files": []
+        }
+        """,
+        encoding="utf-8",
+    )
     manager = FakeModelManager()
 
     with pytest.raises(LicenseNotAccepted):
         download_models(
-            manifest_dir=Path("models/manifests"),
+            manifest_dir=manifest_dir,
             manager=manager,
             model_ids=["nllb-600m"],
             accept_noncommercial=False,
