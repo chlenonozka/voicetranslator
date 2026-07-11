@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Threading.Channels;
 using VoiceTranslator.Application.Orchestration;
 using VoiceTranslator.Application.Ports;
@@ -30,16 +31,20 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
     private int started;
     private int stopped;
 
+    private readonly ISessionFailureObserver failureObserver;
+
     public DesktopTranslationSession(
         ILocalTranslationWorker worker,
         IAudioCaptureSource capture,
         IAudioPlaybackSink output,
-        string targetLanguage)
+        string targetLanguage,
+        ISessionFailureObserver failureObserver)
     {
         this.worker = worker;
         this.capture = capture;
         this.output = output;
         this.targetLanguage = targetLanguage;
+        this.failureObserver = failureObserver;
     }
 
     public event Action<Exception>? Failed;
@@ -190,6 +195,16 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
         catch (OperationCanceledException)
             when (cancellationToken.IsCancellationRequested)
         {
+        }
+        catch (HttpRequestException error)
+            when (error.StatusCode == System.Net.HttpStatusCode.InsufficientStorage)
+        {
+            await failureObserver
+                .OnSessionFailureAsync(
+                    SessionFailure.GpuMemoryExhausted,
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            Failed?.Invoke(error);
         }
         catch (Exception error)
         {
