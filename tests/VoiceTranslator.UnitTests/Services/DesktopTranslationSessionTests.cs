@@ -64,7 +64,15 @@ public sealed class DesktopTranslationSessionTests
             observer);
         session.Start();
 
+        // Emit first phrase to create speaker session
         capture.EmitPhrase();
+
+        // Wait a bit to ensure speaker session is created
+        await Task.Delay(100);
+
+        // Emit second phrase to trigger translation
+        capture.EmitPhrase();
+
         await observer.Signaled.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         observer.Failure.Should().Be(SessionFailure.GpuMemoryExhausted);
