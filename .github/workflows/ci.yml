@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v6
       - run: uv python install 3.11
-      - run: uv sync --project worker --extra test --locked
+      - run: uv sync --project worker --extra test --extra ml --locked
       - run: uv run --project worker pytest worker/tests -q
       - run: uv lock --project worker --check
 

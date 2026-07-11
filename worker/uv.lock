@@ -1977,6 +1977,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "numpy" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
@@ -2011,6 +2012,7 @@ requires-dist = [
     { name = "faster-whisper", marker = "extra == 'ml'", specifier = ">=1.2,<2" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "huggingface-hub", marker = "extra == 'ml'", specifier = ">=0.34,<1" },
+    { name = "numpy", specifier = ">=1.26,<3" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "pydantic-settings", specifier = ">=2.12,<3" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=9,<10" },
