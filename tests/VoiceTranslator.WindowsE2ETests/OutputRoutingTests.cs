@@ -127,7 +127,7 @@ public sealed class OutputRoutingTests
 
         public async Task WaitForPlayCountAsync(int expected)
         {
-            TaskCompletionSource waitTcs;
+            Task waitTask;
             lock (_lock)
             {
                 if (Played.Count >= expected)
@@ -137,17 +137,18 @@ public sealed class OutputRoutingTests
 
                 _expectedCount = expected;
                 _tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                waitTcs = _tcs;
+                waitTask = _tcs.Task;
             }
 
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            using var reg = timeout.Token.Register(() => waitTcs.TrySetCanceled());
-
             try
             {
-                await waitTcs.Task;
+                await waitTask.WaitAsync(timeout.Token);
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException)
+            {
+            }
+            catch (TimeoutException)
             {
             }
             Played.Count.Should().BeGreaterThanOrEqualTo(expected);
