@@ -101,13 +101,27 @@ public sealed class PhysicalOutputTests
 
     private sealed class RecordingSink : ISynthesizedAudioSink
     {
+        private TaskCompletionSource? _tcs;
+        private int _expectedCount;
+        private readonly object _lock = new();
+
         public List<SynthesizedPcmPayload> Played { get; } = [];
 
         public ValueTask PlayAsync(
             SynthesizedPcmPayload payload,
             CancellationToken cancellationToken)
         {
-            Played.Add(payload);
+            TaskCompletionSource? toSet = null;
+            lock (_lock)
+            {
+                Played.Add(payload);
+                if (_tcs != null && Played.Count >= _expectedCount)
+                {
+                    toSet = _tcs;
+                    _tcs = null;
+                }
+            }
+            toSet?.TrySetResult();
             return ValueTask.CompletedTask;
         }
 
@@ -117,19 +131,29 @@ public sealed class PhysicalOutputTests
 
         public async Task WaitForPlayCountAsync(int expected)
         {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            while (Played.Count < expected && !timeout.IsCancellationRequested)
+            TaskCompletionSource waitTcs;
+            lock (_lock)
             {
-                try
+                if (Played.Count >= expected)
                 {
-                    await Task.Delay(10, timeout.Token);
+                    return;
                 }
-                catch (TaskCanceledException)
-                {
-                    break;
-                }
+
+                _expectedCount = expected;
+                _tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                waitTcs = _tcs;
             }
 
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var reg = timeout.Token.Register(() => waitTcs.TrySetCanceled());
+
+            try
+            {
+                await waitTcs.Task;
+            }
+            catch (TaskCanceledException)
+            {
+            }
             Played.Count.Should().BeGreaterThanOrEqualTo(expected);
         }
     }

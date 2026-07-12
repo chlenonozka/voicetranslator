@@ -79,6 +79,9 @@ public sealed class OutputRoutingTests
     {
         private readonly TaskCompletionSource unblock =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource? _tcs;
+        private int _expectedCount;
+        private readonly object _lock = new();
 
         public List<SynthesizedPcmPayload> Played { get; } = [];
         public int PlayAttempts { get; private set; }
@@ -88,13 +91,25 @@ public sealed class OutputRoutingTests
             SynthesizedPcmPayload payload,
             CancellationToken cancellationToken)
         {
-            PlayAttempts++;
-            if (failFirstPlay && PlayAttempts == 1)
+            TaskCompletionSource? toSet = null;
+            lock (_lock)
             {
-                throw new InvalidOperationException("sink failed");
+                PlayAttempts++;
+                if (failFirstPlay && PlayAttempts == 1)
+                {
+                    throw new InvalidOperationException("sink failed");
+                }
+
+                Played.Add(payload);
+                if (_tcs != null && Played.Count >= _expectedCount)
+                {
+                    toSet = _tcs;
+                    _tcs = null;
+                }
             }
 
-            Played.Add(payload);
+            toSet?.TrySetResult();
+
             if (!blockPlayback)
             {
                 return ValueTask.CompletedTask;
@@ -112,13 +127,29 @@ public sealed class OutputRoutingTests
 
         public async Task WaitForPlayCountAsync(int expected)
         {
-            using var timeout = new CancellationTokenSource(
-                TimeSpan.FromSeconds(2));
-            while (Played.Count < expected && !timeout.IsCancellationRequested)
+            TaskCompletionSource waitTcs;
+            lock (_lock)
             {
-                await Task.Delay(10, timeout.Token);
+                if (Played.Count >= expected)
+                {
+                    return;
+                }
+
+                _expectedCount = expected;
+                _tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                waitTcs = _tcs;
             }
 
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var reg = timeout.Token.Register(() => waitTcs.TrySetCanceled());
+
+            try
+            {
+                await waitTcs.Task;
+            }
+            catch (TaskCanceledException)
+            {
+            }
             Played.Count.Should().BeGreaterThanOrEqualTo(expected);
         }
     }

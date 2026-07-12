@@ -195,9 +195,7 @@ public sealed class WorkerRecoveryTests
             StopCount++;
             if (Hang)
             {
-                return Task.Delay(
-                    Timeout.InfiniteTimeSpan,
-                    CancellationToken.None);
+                return new TaskCompletionSource().Task;
             }
 
             return Task.CompletedTask;
@@ -270,9 +268,7 @@ public sealed class WorkerRecoveryTests
             CancellationToken cancellationToken)
         {
             return HangHeartbeatIgnoringCancellation
-                ? Task.Delay(
-                    Timeout.InfiniteTimeSpan,
-                    CancellationToken.None)
+                ? new TaskCompletionSource().Task
                 : Task.CompletedTask;
         }
     }

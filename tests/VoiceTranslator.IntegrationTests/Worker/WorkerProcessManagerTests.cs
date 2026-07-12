@@ -87,7 +87,7 @@ public sealed class WorkerProcessManagerTests
         public Task WaitForExitAsync(
             LaunchedWorker worker,
             CancellationToken cancellationToken) =>
-            Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            new TaskCompletionSource().Task.WaitAsync(cancellationToken);
     }
 
     private sealed class FakeWorkerHealthProbe : IWorkerHealthProbe

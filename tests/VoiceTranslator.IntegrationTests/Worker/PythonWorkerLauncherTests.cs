@@ -83,9 +83,7 @@ public sealed class PythonWorkerLauncherTests
         {
             if (WaitUntilCancelled)
             {
-                await Task.Delay(
-                    Timeout.InfiniteTimeSpan,
-                    cancellationToken);
+                await new TaskCompletionSource().Task.WaitAsync(cancellationToken);
             }
 
             HasExited = true;
