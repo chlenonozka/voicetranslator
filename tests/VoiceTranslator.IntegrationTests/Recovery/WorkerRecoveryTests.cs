@@ -26,9 +26,7 @@ public sealed class WorkerRecoveryTests
 
         await manager.StartAsync(CancellationToken.None);
         process.Exit();
-        await WaitUntilAsync(
-            () => coordinator.State
-                == SessionFailureState.RestartRequired);
+        await session.WaitForStopAsync(TimeSpan.FromSeconds(2));
 
         session.StopCount.Should().Be(1);
         coordinator.State.Should().Be(SessionFailureState.RestartRequired);
@@ -55,9 +53,7 @@ public sealed class WorkerRecoveryTests
             heartbeatTimeout: TimeSpan.FromMilliseconds(100));
 
         await manager.StartAsync(CancellationToken.None);
-        await WaitUntilAsync(
-            () => coordinator.State
-                == SessionFailureState.RestartRequired);
+        await session.WaitForStopAsync(TimeSpan.FromSeconds(2));
 
         session.StopCount.Should().Be(1);
         coordinator.Failure.Should().Be(SessionFailure.HeartbeatTimedOut);
@@ -186,29 +182,25 @@ public sealed class WorkerRecoveryTests
     private sealed class FakeSessionStopper : ISessionStopper
     {
         private int stopCount;
+        private readonly TaskCompletionSource stopped =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public int StopCount => Volatile.Read(ref stopCount);
         public bool Hang { get; init; }
 
+        public Task WaitForStopAsync(TimeSpan timeout) =>
+            stopped.Task.WaitAsync(timeout);
+
         public Task StopSessionAsync(CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref stopCount);
+            stopped.TrySetResult();
             if (Hang)
             {
                 return new TaskCompletionSource().Task.WaitAsync(cancellationToken);
             }
 
             return Task.CompletedTask;
-        }
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(
-            TimeSpan.FromSeconds(2));
-        while (!condition())
-        {
-            await Task.Delay(10, timeout.Token);
         }
     }
 
