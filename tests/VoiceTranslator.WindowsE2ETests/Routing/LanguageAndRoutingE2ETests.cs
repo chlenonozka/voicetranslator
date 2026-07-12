@@ -167,7 +167,7 @@ public sealed class LanguageAndRoutingE2ETests
 
         public async Task WaitForPlayCountAsync(int expected)
         {
-            TaskCompletionSource waitTcs;
+            Task waitTask;
             lock (_lock)
             {
                 if (Played.Count >= expected)
@@ -177,17 +177,18 @@ public sealed class LanguageAndRoutingE2ETests
 
                 _expectedCount = expected;
                 _tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-                waitTcs = _tcs;
+                waitTask = _tcs.Task;
             }
 
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            using var reg = timeout.Token.Register(() => waitTcs.TrySetCanceled());
-
             try
             {
-                await waitTcs.Task;
+                await waitTask.WaitAsync(timeout.Token);
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException)
+            {
+            }
+            catch (TimeoutException)
             {
             }
             Played.Count.Should().BeGreaterThanOrEqualTo(expected);
