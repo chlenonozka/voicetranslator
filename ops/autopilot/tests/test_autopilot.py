@@ -86,6 +86,20 @@ class AutopilotTests(unittest.TestCase):
             sends = [call for call in jules.calls if call[1].endswith(":sendMessage")]
             self.assertEqual(1, len(sends))
 
+    def test_feedback_message_is_sent_for_a_new_feedback_episode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            jules = FakeClient()
+            app = self.make_app(directory, jules=jules)
+            state = app.store.empty_state()
+            state.update(active_session_id="abc", session_type="build")
+
+            app.reconcile_session(state, {"state": "AWAITING_USER_FEEDBACK"})
+            app.reconcile_session(state, {"state": "IN_PROGRESS"})
+            app.reconcile_session(state, {"state": "AWAITING_USER_FEEDBACK"})
+
+            sends = [call for call in jules.calls if call[1].endswith(":sendMessage")]
+            self.assertEqual(2, len(sends))
+
     def test_three_failed_repairs_leave_pr_open(self):
         with tempfile.TemporaryDirectory() as directory:
             app = self.make_app(directory)

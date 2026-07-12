@@ -363,6 +363,9 @@ class Autopilot:
 
     def reconcile_session(self, state: dict[str, Any], session: Mapping[str, Any]) -> None:
         status = str(session.get("state", ""))
+        # A later feedback request is a new episode once Jules has resumed work.
+        if status != "AWAITING_USER_FEEDBACK":
+            state["feedback_sent"] = False
         if status in WAITING_STATES:
             return
         if status == "AWAITING_PLAN_APPROVAL":
