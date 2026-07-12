@@ -38,8 +38,23 @@ public sealed class AudioDeviceCatalogTests
 
     private sealed class FakeEndpointSource : IAudioEndpointSource
     {
-        public IReadOnlyList<AudioDeviceInfo> Captures { get; set; } = [];
-        public IReadOnlyList<AudioDeviceInfo> Renders { get; set; } = [];
+
+        private readonly object _lock = new();
+        private IReadOnlyList<AudioDeviceInfo> _captures = [];
+        public IReadOnlyList<AudioDeviceInfo> Captures
+        {
+            get { lock (_lock) return _captures; }
+            set { lock (_lock) _captures = value; }
+        }
+
+
+        private IReadOnlyList<AudioDeviceInfo> _renders = [];
+        public IReadOnlyList<AudioDeviceInfo> Renders
+        {
+            get { lock (_lock) return _renders; }
+            set { lock (_lock) _renders = value; }
+        }
+
 
         public IReadOnlyList<AudioDeviceInfo> EnumerateCaptureDevices() =>
             Captures;
