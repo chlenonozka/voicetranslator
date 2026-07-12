@@ -106,10 +106,34 @@ public sealed class TranslationPipelineTests
 
     private sealed class FakeAudioPlaybackSink : IAudioPlaybackSink
     {
-        public List<byte[]> Played { get; } = [];
-        public bool Stopped { get; private set; }
+        private readonly object syncLock = new();
+        private readonly List<byte[]> played = [];
+        private bool stopped;
 
-        public void Play(byte[] pcm) => Played.Add(pcm);
+        public List<byte[]> Played
+        {
+            get
+            {
+                lock (syncLock)
+                {
+                    return [.. played];
+                }
+            }
+        }
+
+        public bool Stopped
+        {
+            get => Volatile.Read(ref stopped);
+            private set => Volatile.Write(ref stopped, value);
+        }
+
+        public void Play(byte[] pcm)
+        {
+            lock (syncLock)
+            {
+                played.Add(pcm);
+            }
+        }
 
         public void StopPlayback() => Stopped = true;
     }

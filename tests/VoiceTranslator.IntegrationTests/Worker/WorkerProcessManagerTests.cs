@@ -73,7 +73,7 @@ public sealed class WorkerProcessManagerTests
             CancellationToken cancellationToken)
         {
             var worker = new LaunchedWorker(
-                nextProcessId++,
+                Interlocked.Increment(ref nextProcessId) - 1,
                 request.Endpoint,
                 "balanced");
             return Task.FromResult(worker);
@@ -92,10 +92,13 @@ public sealed class WorkerProcessManagerTests
 
     private sealed class FakeWorkerHealthProbe : IWorkerHealthProbe
     {
+        private int callCount;
+        private int healthCheckCount;
+
         public Uri? Endpoint { get; private set; }
         public string? Token { get; private set; }
-        public int CallCount { get; private set; }
-        public int HealthCheckCount { get; private set; }
+        public int CallCount => Volatile.Read(ref callCount);
+        public int HealthCheckCount => Volatile.Read(ref healthCheckCount);
         private readonly TaskCompletionSource healthChecked =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -106,7 +109,7 @@ public sealed class WorkerProcessManagerTests
         {
             Endpoint = endpoint;
             Token = token;
-            CallCount++;
+            Interlocked.Increment(ref callCount);
             return Task.CompletedTask;
         }
 
@@ -115,7 +118,7 @@ public sealed class WorkerProcessManagerTests
             string token,
             CancellationToken cancellationToken)
         {
-            HealthCheckCount++;
+            Interlocked.Increment(ref healthCheckCount);
             healthChecked.TrySetResult();
             return Task.CompletedTask;
         }
