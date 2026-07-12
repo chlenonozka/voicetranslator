@@ -115,6 +115,26 @@ public sealed class WorkerRecoveryTests
     }
 
     [Fact]
+    public async Task WorkerReturning507TriggersGpuMemoryExhaustedFailure()
+    {
+        var session = new FakeSessionStopper();
+        var coordinator = new SessionFailureCoordinator(session);
+        var output = new FakeAudioPlaybackSink();
+        using var pipeline = new TranslationPipeline(
+            new ThrowingTranslationWorker(),
+            output,
+            queueCapacity: 1,
+            failureObserver: coordinator);
+        pipeline.Enqueue(new Phrase("one", [1]));
+
+        await pipeline.ProcessQueuedAsync(CancellationToken.None);
+
+        session.StopCount.Should().Be(1);
+        coordinator.State.Should().Be(SessionFailureState.RestartRequired);
+        coordinator.Failure.Should().Be(SessionFailure.GpuMemoryExhausted);
+    }
+
+    [Fact]
     public async Task FailureHandlingIsBoundedWhenStopperHangs()
     {
         var session = new FakeSessionStopper
@@ -287,6 +307,25 @@ public sealed class WorkerRecoveryTests
             exited.TrySetResult();
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class ThrowingTranslationWorker : IPhraseTranslationWorker
+    {
+        public Task<byte[]> TranslateAsync(
+            Phrase phrase,
+            CancellationToken cancellationToken)
+        {
+            throw new HttpRequestException(
+                "Worker request failed with 507 InsufficientStorage",
+                inner: null,
+                System.Net.HttpStatusCode.InsufficientStorage);
+        }
+    }
+
+    private sealed class FakeAudioPlaybackSink : IAudioPlaybackSink
+    {
+        public void Play(byte[] pcm) { }
+        public void StopPlayback() { }
     }
 
     private sealed class PassthroughWorker : IPhraseTranslationWorker

@@ -287,7 +287,8 @@ public sealed class DesktopRuntimeService :
                 worker,
                 capture,
                 output,
-                targetLanguage);
+                targetLanguage,
+                this);
             session.Failed += OnTranslationSessionFailed;
             session.InputLevelChanged += OnInputLevelChanged;
             session.OutputLevelChanged += OnOutputLevelChanged;
