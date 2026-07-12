@@ -92,6 +92,7 @@ public sealed class LanguageAndRoutingE2ETests
     private sealed class FakePhraseTranslationWorker : IPhraseTranslationWorker
     {
         private readonly string expectedLanguage;
+        private readonly object syncLock = new();
 
         public FakePhraseTranslationWorker(string expectedLanguage)
         {
@@ -105,7 +106,10 @@ public sealed class LanguageAndRoutingE2ETests
             CancellationToken cancellationToken)
         {
             await Task.Delay(10, cancellationToken);
-            TranslatedIds.Add(phrase.Id);
+            lock (syncLock)
+            {
+                TranslatedIds.Add(phrase.Id);
+            }
             return [10, 20, 30, 40];
         }
     }

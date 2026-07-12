@@ -72,6 +72,7 @@ public sealed class TranslationPipelineTests
         : IPhraseTranslationWorker
     {
         private int activeCount;
+        private readonly object syncLock = new();
 
         public List<string> TranslatedIds { get; } = [];
         public int MaximumConcurrency { get; private set; }
@@ -80,19 +81,25 @@ public sealed class TranslationPipelineTests
             Phrase phrase,
             CancellationToken cancellationToken)
         {
-            activeCount++;
-            MaximumConcurrency = Math.Max(
-                MaximumConcurrency,
-                activeCount);
+            var current = Interlocked.Increment(ref activeCount);
+            lock (syncLock)
+            {
+                MaximumConcurrency = Math.Max(
+                    MaximumConcurrency,
+                    current);
+            }
             try
             {
                 await Task.Yield();
-                TranslatedIds.Add(phrase.Id);
+                lock (syncLock)
+                {
+                    TranslatedIds.Add(phrase.Id);
+                }
                 return phrase.Pcm16;
             }
             finally
             {
-                activeCount--;
+                Interlocked.Decrement(ref activeCount);
             }
         }
     }
