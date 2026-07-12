@@ -185,12 +185,14 @@ public sealed class WorkerRecoveryTests
 
     private sealed class FakeSessionStopper : ISessionStopper
     {
-        public int StopCount { get; private set; }
+        private int stopCount;
+
+        public int StopCount => Volatile.Read(ref stopCount);
         public bool Hang { get; init; }
 
         public Task StopSessionAsync(CancellationToken cancellationToken)
         {
-            StopCount++;
+            Interlocked.Increment(ref stopCount);
             if (Hang)
             {
                 return new TaskCompletionSource().Task;
