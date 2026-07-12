@@ -394,7 +394,12 @@ class Autopilot:
         raise AutopilotError(f"unknown Jules session state: {status or 'missing'}")
 
     def reconcile_completed_session(self, state: dict[str, Any], session: Mapping[str, Any]) -> None:
-        url = extract_pull_request_url(session)
+        try:
+            url = extract_pull_request_url(session)
+        except AutopilotError:
+            record_event(state, f"session {state['active_session_id']} completed without a pull request; starting a new session next cycle")
+            clear_active_state(state)
+            return
         number = pull_request_number(url, self.config.owner, self.config.repository)
         pr = self.github.request("GET", f"/repos/{self.config.owner}/{self.config.repository}/pulls/{number}")
         if pr.get("state") != "open":

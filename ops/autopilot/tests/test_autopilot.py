@@ -113,6 +113,18 @@ class AutopilotTests(unittest.TestCase):
             self.assertFalse(state["feedback_sent"])
             self.assertIn("paused; starting a new session next cycle", state["history"][-1]["message"])
 
+    def test_completed_session_without_a_pull_request_is_cleared(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = self.make_app(directory)
+            state = app.store.empty_state()
+            state.update(active_session_id="abc", session_type="build")
+
+            app.reconcile_session(state, {"state": "COMPLETED", "outputs": []})
+
+            self.assertIsNone(state["active_session_id"])
+            self.assertIn("completed without a pull request", state["history"][-1]["message"])
+            self.assertFalse(app.github.calls)
+
     def test_three_failed_repairs_leave_pr_open(self):
         with tempfile.TemporaryDirectory() as directory:
             app = self.make_app(directory)
