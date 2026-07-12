@@ -7,6 +7,7 @@ public sealed class TranslationPipeline : IDisposable, ISessionStopper
     private readonly IPhraseTranslationWorker worker;
     private readonly IAudioPlaybackSink output;
     private readonly BoundedPhraseQueue queue;
+    private readonly ISessionFailureObserver? failureObserver;
     private readonly SemaphoreSlim consumer = new(1, 1);
     private readonly object sessionGate = new();
     private readonly CancellationTokenSource sessionCancellation = new();
@@ -19,11 +20,13 @@ public sealed class TranslationPipeline : IDisposable, ISessionStopper
     public TranslationPipeline(
         IPhraseTranslationWorker worker,
         IAudioPlaybackSink output,
-        int queueCapacity)
+        int queueCapacity,
+        ISessionFailureObserver? failureObserver = null)
     {
         this.worker = worker;
         this.output = output;
         queue = new BoundedPhraseQueue(queueCapacity);
+        this.failureObserver = failureObserver;
     }
 
     public void Enqueue(Phrase phrase) => queue.Enqueue(phrase);
@@ -69,6 +72,14 @@ public sealed class TranslationPipeline : IDisposable, ISessionStopper
                     when (sessionToken.IsCancellationRequested
                         && !cancellationToken.IsCancellationRequested)
                 {
+                    return;
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.InsufficientStorage)
+                {
+                    if (failureObserver != null)
+                    {
+                        await failureObserver.OnSessionFailureAsync(SessionFailure.GpuMemoryExhausted, cancellationToken).ConfigureAwait(false);
+                    }
                     return;
                 }
 

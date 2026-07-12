@@ -11,6 +11,7 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
     private readonly IAudioCaptureSource capture;
     private readonly IAudioPlaybackSink output;
     private readonly string targetLanguage;
+    private readonly ISessionFailureObserver? failureObserver;
     private readonly Pcm16PhraseSegmenter segmenter = new(
         sampleRate: 16_000,
         silenceDuration: TimeSpan.FromMilliseconds(500),
@@ -34,12 +35,14 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
         ILocalTranslationWorker worker,
         IAudioCaptureSource capture,
         IAudioPlaybackSink output,
-        string targetLanguage)
+        string targetLanguage,
+        ISessionFailureObserver? failureObserver = null)
     {
         this.worker = worker;
         this.capture = capture;
         this.output = output;
         this.targetLanguage = targetLanguage;
+        this.failureObserver = failureObserver;
     }
 
     public event Action<Exception>? Failed;
@@ -172,7 +175,8 @@ public sealed class DesktopTranslationSession : IAsyncDisposable
                             output,
                             OutputLevelChanged,
                             ActivityChanged),
-                        queueCapacity: 2);
+                        queueCapacity: 2,
+                        failureObserver: failureObserver);
                     ActivityChanged?.Invoke(
                         "Voice reference ready. Speak the next Russian phrase to translate.");
                     continue;
