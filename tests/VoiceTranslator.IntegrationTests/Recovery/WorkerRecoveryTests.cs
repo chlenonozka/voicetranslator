@@ -73,9 +73,7 @@ public sealed class WorkerRecoveryTests
         var stopwatch = Stopwatch.StartNew();
 
         bool healthy = await coordinator.CheckHeartbeatAsync(
-            _ => Task.Delay(
-                TimeSpan.FromMilliseconds(500),
-                CancellationToken.None),
+            async ct => await new TaskCompletionSource().Task.WaitAsync(ct),
             CancellationToken.None);
 
         stopwatch.Stop();

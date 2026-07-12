@@ -64,6 +64,8 @@ public sealed class PhysicalOutputTests
 
     private sealed class FakePhraseTranslationWorker : IPhraseTranslationWorker
     {
+        private readonly object syncLock = new();
+
         public List<string> TranslatedIds { get; } = [];
 
         public async Task<byte[]> TranslateAsync(
@@ -71,7 +73,10 @@ public sealed class PhysicalOutputTests
             CancellationToken cancellationToken)
         {
             await Task.Delay(50, cancellationToken); // Simulate latency
-            TranslatedIds.Add(phrase.Id);
+            lock (syncLock)
+            {
+                TranslatedIds.Add(phrase.Id);
+            }
 
             // Return some dummy translated PCM data
             return [10, 20, 30, 40];
