@@ -100,6 +100,19 @@ class AutopilotTests(unittest.TestCase):
             sends = [call for call in jules.calls if call[1].endswith(":sendMessage")]
             self.assertEqual(2, len(sends))
 
+    def test_paused_session_is_cleared_for_the_next_cycle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = self.make_app(directory)
+            state = app.store.empty_state()
+            state.update(active_session_id="abc", session_type="build", feedback_sent=True)
+
+            app.reconcile_session(state, {"state": "PAUSED"})
+
+            self.assertIsNone(state["active_session_id"])
+            self.assertIsNone(state["session_type"])
+            self.assertFalse(state["feedback_sent"])
+            self.assertIn("paused; starting a new session next cycle", state["history"][-1]["message"])
+
     def test_three_failed_repairs_leave_pr_open(self):
         with tempfile.TemporaryDirectory() as directory:
             app = self.make_app(directory)

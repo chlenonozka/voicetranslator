@@ -383,6 +383,10 @@ class Autopilot:
         if status == "COMPLETED":
             self.reconcile_completed_session(state, session)
             return
+        if status == "PAUSED":
+            record_event(state, f"session {state['active_session_id']} paused; starting a new session next cycle")
+            clear_active_state(state)
+            return
         if status in TERMINAL_FAILURE_STATES:
             record_event(state, f"session {state['active_session_id']} ended with {status}")
             clear_active_state(state)
