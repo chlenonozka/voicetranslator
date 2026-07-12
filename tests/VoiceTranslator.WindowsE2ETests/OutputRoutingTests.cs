@@ -83,7 +83,16 @@ public sealed class OutputRoutingTests
         private int _expectedCount;
         private readonly object _lock = new();
 
-        public List<SynthesizedPcmPayload> Played { get; } = [];
+
+        private readonly List<SynthesizedPcmPayload> played = [];
+        public List<SynthesizedPcmPayload> Played
+        {
+            get
+            {
+                lock (_lock) return [.. played];
+            }
+        }
+
         public int PlayAttempts { get; private set; }
         public int StopCount { get; private set; }
 
@@ -100,8 +109,8 @@ public sealed class OutputRoutingTests
                     throw new InvalidOperationException("sink failed");
                 }
 
-                Played.Add(payload);
-                if (_tcs != null && Played.Count >= _expectedCount)
+                played.Add(payload);
+                if (_tcs != null && played.Count >= _expectedCount)
                 {
                     toSet = _tcs;
                     _tcs = null;
@@ -130,7 +139,7 @@ public sealed class OutputRoutingTests
             Task waitTask;
             lock (_lock)
             {
-                if (Played.Count >= expected)
+                if (played.Count >= expected)
                 {
                     return;
                 }
@@ -151,7 +160,7 @@ public sealed class OutputRoutingTests
             catch (TimeoutException)
             {
             }
-            Played.Count.Should().BeGreaterThanOrEqualTo(expected);
+            played.Count.Should().BeGreaterThanOrEqualTo(expected);
         }
     }
 }

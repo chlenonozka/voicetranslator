@@ -66,7 +66,16 @@ public sealed class PhysicalOutputTests
     {
         private readonly object syncLock = new();
 
-        public List<string> TranslatedIds { get; } = [];
+
+        private readonly List<string> translatedIds = [];
+        public List<string> TranslatedIds
+        {
+            get
+            {
+                lock (syncLock) return [.. translatedIds];
+            }
+        }
+
 
         public async Task<byte[]> TranslateAsync(
             Phrase phrase,
@@ -75,7 +84,7 @@ public sealed class PhysicalOutputTests
             await Task.Delay(50, cancellationToken); // Simulate latency
             lock (syncLock)
             {
-                TranslatedIds.Add(phrase.Id);
+                translatedIds.Add(phrase.Id);
             }
 
             // Return some dummy translated PCM data
@@ -110,7 +119,16 @@ public sealed class PhysicalOutputTests
         private int _expectedCount;
         private readonly object _lock = new();
 
-        public List<SynthesizedPcmPayload> Played { get; } = [];
+
+        private readonly List<SynthesizedPcmPayload> played = [];
+        public List<SynthesizedPcmPayload> Played
+        {
+            get
+            {
+                lock (_lock) return [.. played];
+            }
+        }
+
 
         public ValueTask PlayAsync(
             SynthesizedPcmPayload payload,
@@ -119,8 +137,8 @@ public sealed class PhysicalOutputTests
             TaskCompletionSource? toSet = null;
             lock (_lock)
             {
-                Played.Add(payload);
-                if (_tcs != null && Played.Count >= _expectedCount)
+                played.Add(payload);
+                if (_tcs != null && played.Count >= _expectedCount)
                 {
                     toSet = _tcs;
                     _tcs = null;
@@ -139,7 +157,7 @@ public sealed class PhysicalOutputTests
             Task waitTask;
             lock (_lock)
             {
-                if (Played.Count >= expected)
+                if (played.Count >= expected)
                 {
                     return;
                 }
@@ -160,7 +178,7 @@ public sealed class PhysicalOutputTests
             catch (TimeoutException)
             {
             }
-            Played.Count.Should().BeGreaterThanOrEqualTo(expected);
+            played.Count.Should().BeGreaterThanOrEqualTo(expected);
         }
     }
 }

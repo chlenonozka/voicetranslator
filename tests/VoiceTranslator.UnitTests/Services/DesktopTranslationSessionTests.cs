@@ -19,12 +19,21 @@ public sealed class DesktopTranslationSessionTests
             capture,
             output,
             "en");
+
+        var activitiesLock = new object();
         List<string> activities = [];
+
+
+        var inputLevelsLock = new object();
         List<double> inputLevels = [];
+
+
+        var outputLevelsLock = new object();
         List<double> outputLevels = [];
-        session.ActivityChanged += activities.Add;
-        session.InputLevelChanged += inputLevels.Add;
-        session.OutputLevelChanged += outputLevels.Add;
+
+        session.ActivityChanged += a => { lock (activitiesLock) activities.Add(a); };
+        session.InputLevelChanged += l => { lock (inputLevelsLock) inputLevels.Add(l); };
+        session.OutputLevelChanged += l => { lock (outputLevelsLock) outputLevels.Add(l); };
         session.Start();
 
         capture.EmitPhrase();
@@ -37,12 +46,12 @@ public sealed class DesktopTranslationSessionTests
             [(byte)'R', (byte)'I', (byte)'F', (byte)'F']);
         worker.TranslatedWave.Should().StartWith(
             [(byte)'R', (byte)'I', (byte)'F', (byte)'F']);
-        output.Pcm.Should().Equal(7, 0, 8, 0);
-        inputLevels.Should().Contain(level => level > 0);
-        outputLevels.Should().Contain(level => level > 0);
-        activities.Should().Contain("Phrase captured.");
-        activities.Should().Contain("Translating phrase.");
-        activities.Should().Contain("Playing translated speech.");
+        output.Pcm.ToArray().Should().Equal(7, 0, 8, 0);
+        lock (inputLevelsLock) inputLevels.ToArray().Should().Contain(level => level > 0);
+        lock (outputLevelsLock) outputLevels.ToArray().Should().Contain(level => level > 0);
+        lock (activitiesLock) activities.ToArray().Should().Contain("Phrase captured.");
+        lock (activitiesLock) activities.ToArray().Should().Contain("Translating phrase.");
+        lock (activitiesLock) activities.ToArray().Should().Contain("Playing translated speech.");
     }
 
     private sealed class FakeCaptureSource : IAudioCaptureSource
@@ -97,7 +106,15 @@ public sealed class DesktopTranslationSessionTests
         public TaskCompletionSource Played { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public byte[] Pcm { get; private set; } = [];
+
+        private readonly object _lock = new();
+        private byte[] _pcm = [];
+        public byte[] Pcm
+        {
+            get { lock (_lock) return _pcm; }
+            private set { lock (_lock) _pcm = value; }
+        }
+
 
         public void Play(byte[] pcm)
         {

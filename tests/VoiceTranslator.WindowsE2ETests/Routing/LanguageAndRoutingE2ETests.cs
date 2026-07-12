@@ -99,7 +99,16 @@ public sealed class LanguageAndRoutingE2ETests
             this.expectedLanguage = expectedLanguage;
         }
 
-        public List<string> TranslatedIds { get; } = [];
+
+        private readonly List<string> translatedIds = [];
+        public List<string> TranslatedIds
+        {
+            get
+            {
+                lock (syncLock) return [.. translatedIds];
+            }
+        }
+
 
         public async Task<byte[]> TranslateAsync(
             Phrase phrase,
@@ -108,7 +117,7 @@ public sealed class LanguageAndRoutingE2ETests
             await Task.Delay(10, cancellationToken);
             lock (syncLock)
             {
-                TranslatedIds.Add(phrase.Id);
+                translatedIds.Add(phrase.Id);
             }
             return [10, 20, 30, 40];
         }
@@ -141,7 +150,16 @@ public sealed class LanguageAndRoutingE2ETests
         private int _expectedCount;
         private readonly object _lock = new();
 
-        public List<SynthesizedPcmPayload> Played { get; } = [];
+
+        private readonly List<SynthesizedPcmPayload> played = [];
+        public List<SynthesizedPcmPayload> Played
+        {
+            get
+            {
+                lock (_lock) return [.. played];
+            }
+        }
+
 
         public ValueTask PlayAsync(
             SynthesizedPcmPayload payload,
@@ -150,8 +168,8 @@ public sealed class LanguageAndRoutingE2ETests
             TaskCompletionSource? toSet = null;
             lock (_lock)
             {
-                Played.Add(payload);
-                if (_tcs != null && Played.Count >= _expectedCount)
+                played.Add(payload);
+                if (_tcs != null && played.Count >= _expectedCount)
                 {
                     toSet = _tcs;
                     _tcs = null;
@@ -170,7 +188,7 @@ public sealed class LanguageAndRoutingE2ETests
             Task waitTask;
             lock (_lock)
             {
-                if (Played.Count >= expected)
+                if (played.Count >= expected)
                 {
                     return;
                 }
@@ -191,7 +209,7 @@ public sealed class LanguageAndRoutingE2ETests
             catch (TimeoutException)
             {
             }
-            Played.Count.Should().BeGreaterThanOrEqualTo(expected);
+            played.Count.Should().BeGreaterThanOrEqualTo(expected);
         }
     }
 }

@@ -74,7 +74,16 @@ public sealed class TranslationPipelineTests
         private int activeCount;
         private readonly object syncLock = new();
 
-        public List<string> TranslatedIds { get; } = [];
+
+        private readonly List<string> translatedIds = [];
+        public List<string> TranslatedIds
+        {
+            get
+            {
+                lock (syncLock) return [.. translatedIds];
+            }
+        }
+
         public int MaximumConcurrency { get; private set; }
 
         public async Task<byte[]> TranslateAsync(
@@ -93,7 +102,7 @@ public sealed class TranslationPipelineTests
                 await Task.Yield();
                 lock (syncLock)
                 {
-                    TranslatedIds.Add(phrase.Id);
+                    translatedIds.Add(phrase.Id);
                 }
                 return phrase.Pcm16;
             }
