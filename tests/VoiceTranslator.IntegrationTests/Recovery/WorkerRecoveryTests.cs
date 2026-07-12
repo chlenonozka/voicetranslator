@@ -195,7 +195,7 @@ public sealed class WorkerRecoveryTests
             Interlocked.Increment(ref stopCount);
             if (Hang)
             {
-                return new TaskCompletionSource().Task;
+                return new TaskCompletionSource().Task.WaitAsync(cancellationToken);
             }
 
             return Task.CompletedTask;
