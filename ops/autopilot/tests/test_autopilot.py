@@ -184,6 +184,35 @@ class AutopilotTests(unittest.TestCase):
             self.assertTrue(state["paused"])
             self.assertIn("ended with FAILED", state["history"][-1]["message"])
 
+    def test_stop_all_sessions_deletes_only_incomplete_sessions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            jules = FakeClient(
+                [
+                    {
+                        "sessions": [
+                            {"id": "working", "state": "IN_PROGRESS"},
+                            {"id": "waiting", "state": "AWAITING_USER_FEEDBACK"},
+                            {"id": "done", "state": "COMPLETED"},
+                            {"id": "failed", "state": "FAILED"},
+                        ]
+                    },
+                    {},
+                    {},
+                ]
+            )
+            app = self.make_app(directory, jules=jules)
+            state = app.store.empty_state()
+            state.update(active_session_id="working", session_type="build")
+            app.store.save(state)
+
+            app.command("stop-all-sessions")
+
+            deleted_paths = [call[1] for call in jules.calls if call[0] == "DELETE"]
+            self.assertEqual(["/sessions/working", "/sessions/waiting"], deleted_paths)
+            saved_state = app.store.load()
+            self.assertTrue(saved_state["paused"])
+            self.assertIsNone(saved_state["active_session_id"])
+
     def test_state_writes_are_atomic_json(self):
         with tempfile.TemporaryDirectory() as directory:
             store = autopilot.StateStore(Path(directory))

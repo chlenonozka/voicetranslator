@@ -42,6 +42,7 @@ python3 /opt/voicetranslator-autopilot/autopilot.py status
 python3 /opt/voicetranslator-autopilot/autopilot.py pause-now
 python3 /opt/voicetranslator-autopilot/autopilot.py pause-after-current
 python3 /opt/voicetranslator-autopilot/autopilot.py resume
+systemctl start voicetranslator-autopilot-stop-all.service
 systemctl status voicetranslator-autopilot.timer --no-pager
 journalctl -u voicetranslator-autopilot.service -n 100 --no-pager
 ```
@@ -54,6 +55,10 @@ The autopilot also pauses itself after a Jules failure or pause, a completed
 session without a pull request, an externally closed pull request, or failed
 CI. It does not start a repair or a new session automatically in those cases.
 Resume it explicitly only after reviewing the stopped session.
+
+`voicetranslator-autopilot-stop-all.service` deletes all incomplete Jules
+sessions and pauses the autopilot. It preserves completed and failed sessions
+as history.
 
 ## Local tests
 

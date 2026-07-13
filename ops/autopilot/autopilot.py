@@ -31,6 +31,7 @@ GITHUB_BASE_URL = "https://api.github.com"
 ALLOWED_CI_CONCLUSIONS = {"success", "neutral", "skipped"}
 WAITING_STATES = {"QUEUED", "PLANNING", "IN_PROGRESS"}
 TERMINAL_FAILURE_STATES = {"FAILED", "CANCELLED", "EXPIRED"}
+TERMINAL_SESSION_STATES = TERMINAL_FAILURE_STATES | {"COMPLETED"}
 MAX_HISTORY = 100
 
 BUILD_PROMPT = """You are continuing autonomous development of this project.
@@ -467,10 +468,44 @@ class Autopilot:
             elif name == "resume":
                 state.update(paused=False, pause_after_current=False)
                 record_event(state, "resumed")
+            elif name == "stop-all-sessions":
+                deleted_session_ids = self.stop_incomplete_jules_sessions()
+                clear_active_state(state)
+                state.update(paused=True, pause_after_current=False)
+                record_event(state, f"deleted {len(deleted_session_ids)} incomplete Jules sessions and paused")
             else:
                 raise AutopilotError(f"unknown command: {name}")
             self.store.save(state)
         return 0
+
+    def stop_incomplete_jules_sessions(self) -> list[str]:
+        page_token: str | None = None
+        seen_page_tokens: set[str] = set()
+        deleted_session_ids: list[str] = []
+
+        while True:
+            query: dict[str, str | int] = {"pageSize": 100}
+            if page_token:
+                query["pageToken"] = page_token
+            response = self.jules.request("GET", f"/sessions?{urlencode(query)}")
+            for session in response.get("sessions", []):
+                if not isinstance(session, Mapping):
+                    continue
+                if str(session.get("state", "")) in TERMINAL_SESSION_STATES:
+                    continue
+                identifier = session_id(session)
+                self.jules.request("DELETE", f"/sessions/{identifier}")
+                deleted_session_ids.append(identifier)
+
+            next_page_token = str(response.get("nextPageToken") or "")
+            if not next_page_token:
+                break
+            if next_page_token in seen_page_tokens:
+                raise AutopilotError("Jules sessions pagination repeated a page token")
+            seen_page_tokens.add(next_page_token)
+            page_token = next_page_token
+
+        return deleted_session_ids
 
 
 def build_autopilot() -> Autopilot:
@@ -492,7 +527,12 @@ def build_autopilot() -> Autopilot:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("run", "status", "pause-now", "pause-after-current", "resume"), nargs="?", default="run")
+    parser.add_argument(
+        "command",
+        choices=("run", "status", "pause-now", "pause-after-current", "resume", "stop-all-sessions"),
+        nargs="?",
+        default="run",
+    )
     arguments = parser.parse_args(argv)
     try:
         autopilot = build_autopilot()

@@ -19,6 +19,8 @@ install -o root -g root -m 0644 "${SCRIPT_DIR}/voicetranslator-autopilot.service
   /etc/systemd/system/voicetranslator-autopilot.service
 install -o root -g root -m 0644 "${SCRIPT_DIR}/voicetranslator-autopilot.timer" \
   /etc/systemd/system/voicetranslator-autopilot.timer
+install -o root -g root -m 0644 "${SCRIPT_DIR}/voicetranslator-autopilot-stop-all.service" \
+  /etc/systemd/system/voicetranslator-autopilot-stop-all.service
 install -d -o root -g root -m 0700 /var/lib/voicetranslator-autopilot
 systemctl daemon-reload
 echo "Installed VoiceTranslator autopilot files. The timer remains disabled until configuration."
