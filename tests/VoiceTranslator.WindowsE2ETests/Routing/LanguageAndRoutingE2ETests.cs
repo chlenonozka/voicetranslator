@@ -194,21 +194,12 @@ public sealed class LanguageAndRoutingE2ETests
                 }
 
                 _expectedCount = expected;
-                _tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _tcs = new TaskCompletionSource();
                 waitTask = _tcs.Task;
             }
 
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            try
-            {
-                await waitTask.WaitAsync(timeout.Token);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (TimeoutException)
-            {
-            }
+            await waitTask.WaitAsync(timeout.Token);
             played.Count.Should().BeGreaterThanOrEqualTo(expected);
         }
     }
