@@ -136,6 +136,7 @@ class StateStore:
             "pr_number": None,
             "repair_attempts": 0,
             "feedback_sent": False,
+            "last_feedback_activity_id": None,
             "paused": False,
             "pause_after_current": False,
             "history": [],
@@ -206,6 +207,7 @@ def clear_active_state(state: dict[str, Any]) -> None:
         pr_number=None,
         repair_attempts=0,
         feedback_sent=False,
+        last_feedback_activity_id=None,
     )
 
 
@@ -328,7 +330,12 @@ class Autopilot:
             "requirePlanApproval": False,
         }
         created = self.jules.request("POST", "/sessions", payload)
-        state.update(active_session_id=session_id(created), session_type="build", feedback_sent=False)
+        state.update(
+            active_session_id=session_id(created),
+            session_type="build",
+            feedback_sent=False,
+            last_feedback_activity_id=None,
+        )
         record_event(state, f"started build session {state['active_session_id']}")
 
     def start_repair(self, state: dict[str, Any], pr: Mapping[str, Any], failures: list[str]) -> None:
@@ -358,8 +365,42 @@ class Autopilot:
             pr_number=number,
             repair_attempts=attempts,
             feedback_sent=False,
+            last_feedback_activity_id=None,
         )
         record_event(state, f"started repair {attempts}/{MAX_REPAIRS} for PR #{number}")
+
+    def latest_agent_message_activity_id(self, session_id_value: str) -> str | None:
+        page_token: str | None = None
+        seen_page_tokens: set[str] = set()
+        latest: tuple[str, str] | None = None
+
+        while True:
+            query = {"pageSize": 100}
+            if page_token:
+                query["pageToken"] = page_token
+            response = self.jules.request(
+                "GET",
+                f"/sessions/{session_id_value}/activities?{urlencode(query)}",
+            )
+            for activity in response.get("activities", []):
+                if not isinstance(activity, Mapping) or not isinstance(activity.get("agentMessaged"), Mapping):
+                    continue
+                identity = str(activity.get("name") or activity.get("id") or "")
+                if not identity:
+                    continue
+                candidate = (str(activity.get("createTime") or ""), identity)
+                if latest is None or candidate > latest:
+                    latest = candidate
+
+            next_page_token = str(response.get("nextPageToken") or "")
+            if not next_page_token:
+                break
+            if next_page_token in seen_page_tokens:
+                raise AutopilotError("Jules activities pagination repeated a page token")
+            seen_page_tokens.add(next_page_token)
+            page_token = next_page_token
+
+        return latest[1] if latest else None
 
     def reconcile_session(self, state: dict[str, Any], session: Mapping[str, Any]) -> None:
         status = str(session.get("state", ""))
@@ -373,11 +414,16 @@ class Autopilot:
             record_event(state, f"approved plan for session {state['active_session_id']}")
             return
         if status == "AWAITING_USER_FEEDBACK":
-            if not state["feedback_sent"]:
+            activity_id = self.latest_agent_message_activity_id(str(state["active_session_id"]))
+            already_answered = (
+                state["last_feedback_activity_id"] == activity_id if activity_id else state["feedback_sent"]
+            )
+            if not already_answered:
                 self.jules.request(
                     "POST", f"/sessions/{state['active_session_id']}:sendMessage", {"prompt": FEEDBACK_PROMPT}
                 )
                 state["feedback_sent"] = True
+                state["last_feedback_activity_id"] = activity_id
                 record_event(state, f"sent autonomous feedback to session {state['active_session_id']}")
             return
         if status == "COMPLETED":

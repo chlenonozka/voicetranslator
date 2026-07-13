@@ -76,7 +76,16 @@ class AutopilotTests(unittest.TestCase):
 
     def test_feedback_message_is_not_repeated(self):
         with tempfile.TemporaryDirectory() as directory:
-            jules = FakeClient()
+            activity = {
+                "activities": [
+                    {
+                        "name": "sessions/abc/activities/question-1",
+                        "createTime": "2026-07-13T00:00:00Z",
+                        "agentMessaged": {"agentMessage": "Choose?"},
+                    }
+                ]
+            }
+            jules = FakeClient([activity, {}, activity])
             app = self.make_app(directory, jules=jules)
             state = app.store.empty_state()
             state.update(active_session_id="abc", session_type="build")
@@ -86,15 +95,33 @@ class AutopilotTests(unittest.TestCase):
             sends = [call for call in jules.calls if call[1].endswith(":sendMessage")]
             self.assertEqual(1, len(sends))
 
-    def test_feedback_message_is_sent_for_a_new_feedback_episode(self):
+    def test_feedback_message_is_sent_for_a_new_question_without_an_observed_state_transition(self):
         with tempfile.TemporaryDirectory() as directory:
-            jules = FakeClient()
+            first_question = {
+                "activities": [
+                    {
+                        "name": "sessions/abc/activities/question-1",
+                        "createTime": "2026-07-13T00:00:00Z",
+                        "agentMessaged": {"agentMessage": "First?"},
+                    }
+                ]
+            }
+            second_question = {
+                "activities": [
+                    *first_question["activities"],
+                    {
+                        "name": "sessions/abc/activities/question-2",
+                        "createTime": "2026-07-13T00:05:00Z",
+                        "agentMessaged": {"agentMessage": "Second?"},
+                    },
+                ]
+            }
+            jules = FakeClient([first_question, {}, second_question, {}])
             app = self.make_app(directory, jules=jules)
             state = app.store.empty_state()
             state.update(active_session_id="abc", session_type="build")
 
             app.reconcile_session(state, {"state": "AWAITING_USER_FEEDBACK"})
-            app.reconcile_session(state, {"state": "IN_PROGRESS"})
             app.reconcile_session(state, {"state": "AWAITING_USER_FEEDBACK"})
 
             sends = [call for call in jules.calls if call[1].endswith(":sendMessage")]
