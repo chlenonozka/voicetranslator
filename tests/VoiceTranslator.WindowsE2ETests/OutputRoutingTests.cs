@@ -78,7 +78,7 @@ public sealed class OutputRoutingTests
         bool blockPlayback = false) : ISynthesizedAudioSink
     {
         private readonly TaskCompletionSource unblock =
-            new();
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private TaskCompletionSource? _tcs;
         private int _expectedCount;
         private readonly object _lock = new();
@@ -145,7 +145,7 @@ public sealed class OutputRoutingTests
                 }
 
                 _expectedCount = expected;
-                _tcs = new TaskCompletionSource();
+                _tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 waitTask = _tcs.Task;
             }
 

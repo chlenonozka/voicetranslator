@@ -274,10 +274,7 @@ def create_pcm16_wave(
         wav.setsampwidth(2)
         wav.setframerate(sample_rate)
         wav.writeframes(
-            b"".join(
-                sample.to_bytes(2, "little", signed=True)
-                for sample in samples
-            )
+            b"".join(sample.to_bytes(2, "little", signed=True) for sample in samples)
         )
     return output.getvalue()
 

@@ -53,9 +53,7 @@ def test_authenticated_preflight_endpoint_returns_hardware_report() -> None:
         cuda_inspector=available_cuda,
         language_probe=lambda _: True,
     )
-    client = TestClient(
-        create_app("expected-token", preflight_service=service)
-    )
+    client = TestClient(create_app("expected-token", preflight_service=service))
 
     response = client.post(
         "/v1/preflight",

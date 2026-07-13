@@ -194,7 +194,7 @@ public sealed class LanguageAndRoutingE2ETests
                 }
 
                 _expectedCount = expected;
-                _tcs = new TaskCompletionSource();
+                _tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 waitTask = _tcs.Task;
             }
 

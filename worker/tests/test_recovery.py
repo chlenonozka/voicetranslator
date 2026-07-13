@@ -183,9 +183,7 @@ def test_second_oom_does_not_persist_speech_or_text(
         oom_error_type=FakeCudaOutOfMemoryError,
     )
 
-    with TestClient(
-        create_app("expected-token", pipeline, recovery)
-    ) as client:
+    with TestClient(create_app("expected-token", pipeline, recovery)) as client:
         create_response = client.post(
             "/v1/speaker-sessions",
             content=b"reference-wav",
@@ -220,10 +218,7 @@ def test_second_oom_does_not_persist_speech_or_text(
             path
             for path in root.rglob("*")
             if path.is_file()
-            and any(
-                term in path.name.lower()
-                for term in forbidden_terms
-            )
+            and any(term in path.name.lower() for term in forbidden_terms)
         ]
         assert artifacts == []
 

@@ -83,7 +83,7 @@ public sealed class PythonWorkerLauncherTests
         {
             if (WaitUntilCancelled)
             {
-                await new TaskCompletionSource().Task.WaitAsync(cancellationToken);
+                await new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task.WaitAsync(cancellationToken);
             }
 
             HasExited = true;

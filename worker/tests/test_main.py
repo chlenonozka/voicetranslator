@@ -1,5 +1,3 @@
-from collections.abc import Callable
-
 import pytest
 from fastapi import FastAPI
 
@@ -37,7 +35,9 @@ def test_run_rejects_missing_launch_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("VOICE_TRANSLATOR_WORKER_TOKEN", raising=False)
-    runner: Callable[..., None] = lambda *args, **kwargs: None
+
+    def runner(*args, **kwargs) -> None:
+        pass
 
     with pytest.raises(RuntimeError, match="launch token"):
         run([], runner=runner)
