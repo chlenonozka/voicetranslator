@@ -82,6 +82,8 @@ class PreflightService:
         )
 
     def _probe(self, target_code: str) -> bool:
+        if self.language_probe is None:
+            return False
         try:
             return bool(self.language_probe(target_code))
         except Exception:

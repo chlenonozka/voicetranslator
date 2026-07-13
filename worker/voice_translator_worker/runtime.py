@@ -3,6 +3,8 @@ import json
 import os
 import wave
 from collections.abc import Callable
+from typing import Any
+from .pipeline.asr import Recognition
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -77,7 +79,7 @@ class RuntimeConfig:
 class LoadedModelSet:
     conditioner: SpeakerConditioner
     asr: PhraseRecognizer
-    translator: object
+    translator: Any
     xtts_engine: XttsEngine
     unload: Callable[[], None]
 
@@ -100,7 +102,7 @@ class ResidencyConditioner:
     def __init__(self, residency: ProfileModelResidency) -> None:
         self.residency = residency
 
-    def create(self, reference_wav: bytes) -> object:
+    def create(self, reference_wav: bytes) -> Any:
         return self.residency.require_loaded().conditioner.create(reference_wav)
 
 
@@ -108,7 +110,7 @@ class ResidencyAsr:
     def __init__(self, residency: ProfileModelResidency) -> None:
         self.residency = residency
 
-    def transcribe(self, audio: bytes) -> object:
+    def transcribe(self, audio: bytes) -> Recognition:
         return self.residency.require_loaded().asr.transcribe(audio)
 
 
@@ -140,7 +142,7 @@ class ResidencyXttsEngine:
         *,
         text: str,
         language: str,
-        conditioning: object,
+        conditioning: Any,
     ) -> bytes:
         return self.residency.require_loaded().xtts_engine.synthesize(
             text=text,
@@ -195,7 +197,7 @@ class LazyLocalModelLoader:
 
 
 class InMemoryCoquiXttsAdapter:
-    def __init__(self, model: object) -> None:
+    def __init__(self, model: Any) -> None:
         self.model = model
 
     @staticmethod
@@ -222,7 +224,7 @@ class InMemoryCoquiXttsAdapter:
         model.to("cuda")
         return InMemoryCoquiXttsAdapter(model)
 
-    def create(self, reference_wav: bytes) -> object:
+    def create(self, reference_wav: bytes) -> Any:
         waveform, sample_rate = _load_pcm16_wave(reference_wav)
         return (
             self.model.get_gpt_cond_latents(
@@ -240,7 +242,7 @@ class InMemoryCoquiXttsAdapter:
         *,
         text: str,
         language: str,
-        conditioning: object,
+        conditioning: Any,
     ) -> bytes:
         gpt_cond_latent, speaker_embedding = conditioning
         result = self.model.inference(
@@ -337,7 +339,7 @@ def _has_verified_models(
     return all(manager.verify_installed(model_id) for model_id in REQUIRED_MODEL_IDS)
 
 
-def _load_pcm16_wave(reference_wav: bytes) -> tuple[object, int]:
+def _load_pcm16_wave(reference_wav: bytes) -> tuple[Any, int]:
     import torch
 
     with wave.open(io.BytesIO(reference_wav), "rb") as wav:

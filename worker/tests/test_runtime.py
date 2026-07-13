@@ -1,6 +1,7 @@
 import io
 import shutil
 import sys
+from typing import Any, cast
 import wave
 from pathlib import Path
 from types import SimpleNamespace
@@ -41,7 +42,7 @@ def test_default_composition_switches_actual_medium_to_small_models(
         b"balanced",
         performance_profile="balanced",
     )
-    balanced_asr = loader.loaded[0].asr
+    balanced_asr = cast(FakeAsr, loader.loaded[0].asr)
     pipeline.unload_all()
     pipeline.translate_phrase(
         session_id,
@@ -49,7 +50,7 @@ def test_default_composition_switches_actual_medium_to_small_models(
         b"low-memory",
         performance_profile="low-memory",
     )
-    low_memory_asr = loader.loaded[1].asr
+    low_memory_asr = cast(FakeAsr, loader.loaded[1].asr)
 
     assert loader.requests == [
         ("balanced", "medium"),
@@ -135,7 +136,7 @@ def test_runtime_preflight_exposes_languages_when_pipeline_is_available(
     client = TestClient(
         create_runtime_app(
             "token",
-            pipeline_factory=lambda: object(),
+            pipeline_factory=lambda: cast(Any, object()),
         )
     )
 
@@ -153,7 +154,7 @@ def test_lazy_loader_keeps_nllb_on_cpu_to_avoid_cuda12_cublas(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    translator_calls: list[dict[str, object]] = []
+    translator_calls: list[dict[str, Any]] = []
 
     class RecordingTranslator:
         def __init__(
@@ -183,7 +184,7 @@ def test_lazy_loader_keeps_nllb_on_cpu_to_avoid_cuda12_cublas(
 
     class RecordingTokenizer:
         @staticmethod
-        def from_pretrained(path: str, *, local_files_only: bool) -> object:
+        def from_pretrained(path: str, *, local_files_only: bool) -> Any:
             return SimpleNamespace()
 
     monkeypatch.setitem(
@@ -229,9 +230,9 @@ def test_reference_wave_loader_reads_pcm16_without_torchaudio(
 
     def guarded_import(
         name: str,
-        *args: object,
-        **kwargs: object,
-    ) -> object:
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
         if name == "torchaudio":
             raise AssertionError("reference WAV loading must not use torchaudio")
         return real_import(name, *args, **kwargs)
@@ -350,7 +351,7 @@ class FakeRuntimeModelLoader:
 
 class FakeConditioner:
     @staticmethod
-    def create(reference_wav: bytes) -> object:
+    def create(reference_wav: bytes) -> Any:
         return {"conditioning": bytes(reference_wav)}
 
 
@@ -380,6 +381,6 @@ class FakeXttsEngine:
         *,
         text: str,
         language: str,
-        conditioning: object,
+        conditioning: Any,
     ) -> bytes:
         return b"wav"
