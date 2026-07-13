@@ -50,6 +50,11 @@ journalctl -u voicetranslator-autopilot.service -n 100 --no-pager
 cancel a cloud session. `pause-after-current` permits the active PR to finish
 and merge only if its GitHub Actions runs pass.
 
+The autopilot also pauses itself after a Jules failure or pause, a completed
+session without a pull request, an externally closed pull request, or failed
+CI. It does not start a repair or a new session automatically in those cases.
+Resume it explicitly only after reviewing the stopped session.
+
 ## Local tests
 
 ```bash

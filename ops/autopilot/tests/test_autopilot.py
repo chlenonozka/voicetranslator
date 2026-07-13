@@ -127,7 +127,7 @@ class AutopilotTests(unittest.TestCase):
             sends = [call for call in jules.calls if call[1].endswith(":sendMessage")]
             self.assertEqual(2, len(sends))
 
-    def test_paused_session_is_cleared_for_the_next_cycle(self):
+    def test_paused_session_stops_the_autopilot(self):
         with tempfile.TemporaryDirectory() as directory:
             app = self.make_app(directory)
             state = app.store.empty_state()
@@ -138,9 +138,10 @@ class AutopilotTests(unittest.TestCase):
             self.assertIsNone(state["active_session_id"])
             self.assertIsNone(state["session_type"])
             self.assertFalse(state["feedback_sent"])
-            self.assertIn("paused; starting a new session next cycle", state["history"][-1]["message"])
+            self.assertTrue(state["paused"])
+            self.assertIn("paused; autopilot paused until explicitly resumed", state["history"][-1]["message"])
 
-    def test_completed_session_without_a_pull_request_is_cleared(self):
+    def test_completed_session_without_a_pull_request_stops_the_autopilot(self):
         with tempfile.TemporaryDirectory() as directory:
             app = self.make_app(directory)
             state = app.store.empty_state()
@@ -149,14 +150,15 @@ class AutopilotTests(unittest.TestCase):
             app.reconcile_session(state, {"state": "COMPLETED", "outputs": []})
 
             self.assertIsNone(state["active_session_id"])
+            self.assertTrue(state["paused"])
             self.assertIn("completed without a pull request", state["history"][-1]["message"])
             self.assertFalse(app.github.calls)
 
-    def test_three_failed_repairs_leave_pr_open(self):
+    def test_failing_ci_stops_the_autopilot_without_starting_a_repair(self):
         with tempfile.TemporaryDirectory() as directory:
             app = self.make_app(directory)
             state = app.store.empty_state()
-            state.update(active_session_id="repair", session_type="repair", pr_number=8, repair_attempts=3)
+            state.update(active_session_id="build", session_type="build")
             session = {"outputs": [{"pullRequest": {"url": "https://github.com/chlenonozka/voicetranslator/pull/8"}}]}
             github = FakeClient(
                 [
@@ -167,7 +169,20 @@ class AutopilotTests(unittest.TestCase):
             app.github = github
             app.reconcile_completed_session(state, session)
             self.assertIsNone(state["active_session_id"])
+            self.assertTrue(state["paused"])
             self.assertFalse(any(call[0] == "POST" for call in app.jules.calls))
+
+    def test_failed_session_stops_the_autopilot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = self.make_app(directory)
+            state = app.store.empty_state()
+            state.update(active_session_id="failed", session_type="build")
+
+            app.reconcile_session(state, {"state": "FAILED"})
+
+            self.assertIsNone(state["active_session_id"])
+            self.assertTrue(state["paused"])
+            self.assertIn("ended with FAILED", state["history"][-1]["message"])
 
     def test_state_writes_are_atomic_json(self):
         with tempfile.TemporaryDirectory() as directory:

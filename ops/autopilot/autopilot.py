@@ -32,7 +32,6 @@ ALLOWED_CI_CONCLUSIONS = {"success", "neutral", "skipped"}
 WAITING_STATES = {"QUEUED", "PLANNING", "IN_PROGRESS"}
 TERMINAL_FAILURE_STATES = {"FAILED", "CANCELLED", "EXPIRED"}
 MAX_HISTORY = 100
-MAX_REPAIRS = 3
 
 BUILD_PROMPT = """You are continuing autonomous development of this project.
 
@@ -338,36 +337,11 @@ class Autopilot:
         )
         record_event(state, f"started build session {state['active_session_id']}")
 
-    def start_repair(self, state: dict[str, Any], pr: Mapping[str, Any], failures: list[str]) -> None:
-        number = int(pr["number"])
-        branch = str(pr["head"]["ref"])
-        attempts = int(state["repair_attempts"]) + 1
-        prompt = (
-            f"Repair pull request #{number} on its existing branch `{branch}`. Do not create a competing "
-            "implementation or a new branch. Read the failing GitHub Actions results below, fix the root cause, "
-            "update tests as appropriate, and push the repair to the existing pull request branch.\n\n"
-            "Failed workflows:\n- " + "\n- ".join(failures)
-        )
-        payload = {
-            "title": f"Repair CI for PR #{number}",
-            "prompt": prompt,
-            "sourceContext": {
-                "source": f"sources/github/{self.config.owner}/{self.config.repository}",
-                "githubRepoContext": {"startingBranch": branch},
-            },
-            "automationMode": "AUTO_CREATE_PR",
-            "requirePlanApproval": False,
-        }
-        created = self.jules.request("POST", "/sessions", payload)
-        state.update(
-            active_session_id=session_id(created),
-            session_type="repair",
-            pr_number=number,
-            repair_attempts=attempts,
-            feedback_sent=False,
-            last_feedback_activity_id=None,
-        )
-        record_event(state, f"started repair {attempts}/{MAX_REPAIRS} for PR #{number}")
+    def pause_for_operator(self, state: dict[str, Any], reason: str) -> None:
+        active_session_id = state["active_session_id"]
+        clear_active_state(state)
+        state.update(paused=True, pause_after_current=False)
+        record_event(state, f"session {active_session_id} {reason}; autopilot paused until explicitly resumed")
 
     def latest_agent_message_activity_id(self, session_id_value: str) -> str | None:
         page_token: str | None = None
@@ -430,27 +404,23 @@ class Autopilot:
             self.reconcile_completed_session(state, session)
             return
         if status == "PAUSED":
-            record_event(state, f"session {state['active_session_id']} paused; starting a new session next cycle")
-            clear_active_state(state)
+            self.pause_for_operator(state, "paused")
             return
         if status in TERMINAL_FAILURE_STATES:
-            record_event(state, f"session {state['active_session_id']} ended with {status}")
-            clear_active_state(state)
+            self.pause_for_operator(state, f"ended with {status}")
             return
-        raise AutopilotError(f"unknown Jules session state: {status or 'missing'}")
+        self.pause_for_operator(state, f"has unrecognized state {status or 'missing'}")
 
     def reconcile_completed_session(self, state: dict[str, Any], session: Mapping[str, Any]) -> None:
         try:
             url = extract_pull_request_url(session)
         except AutopilotError:
-            record_event(state, f"session {state['active_session_id']} completed without a pull request; starting a new session next cycle")
-            clear_active_state(state)
+            self.pause_for_operator(state, "completed without a pull request")
             return
         number = pull_request_number(url, self.config.owner, self.config.repository)
         pr = self.github.request("GET", f"/repos/{self.config.owner}/{self.config.repository}/pulls/{number}")
         if pr.get("state") != "open":
-            record_event(state, f"PR #{number} is not open; clearing active state")
-            clear_active_state(state)
+            self.pause_for_operator(state, f"completed with PR #{number} no longer open")
             return
         sha = str(pr.get("head", {}).get("sha", ""))
         if not sha:
@@ -476,11 +446,7 @@ class Autopilot:
                 state["pause_after_current"] = False
                 record_event(state, "paused after current pull request")
             return
-        if state["session_type"] == "repair" and int(state["repair_attempts"]) >= MAX_REPAIRS:
-            record_event(state, f"PR #{number} failed after {MAX_REPAIRS} repair attempts; left open")
-            clear_active_state(state)
-            return
-        self.start_repair(state, pr, failures)
+        self.pause_for_operator(state, f"completed with failing CI for PR #{number}: {', '.join(failures)}")
 
     def command(self, name: str) -> int:
         with self.store.locked():
