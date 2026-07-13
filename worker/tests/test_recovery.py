@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
+from typing import Any, cast
 from fastapi.testclient import TestClient
 
 from voice_translator_worker.api import create_app
@@ -69,7 +70,7 @@ def test_second_oom_maps_to_http_507_and_clears_session() -> None:
     pipeline.oom_error_type = FakeCudaOutOfMemoryError
     headers = {"X-Worker-Token": "expected-token"}
 
-    with TestClient(create_app("expected-token", pipeline)) as client:
+    with TestClient(create_app("expected-token", cast(Any, pipeline))) as client:
         response = client.post(
             "/v1/translate-phrase",
             data={
@@ -126,7 +127,7 @@ def test_default_recovery_construction_and_health_do_not_import_torch(
     imported: list[str] = []
     real_import = builtins.__import__
 
-    def guarded_import(name: str, *args: object, **kwargs: object) -> object:
+    def guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
         if name == "torch":
             imported.append(name)
             raise AssertionError("torch imported during app construction")
@@ -135,7 +136,7 @@ def test_default_recovery_construction_and_health_do_not_import_torch(
     monkeypatch.setattr(builtins, "__import__", guarded_import)
     pipeline = NonOomPipeline()
 
-    with TestClient(create_app("expected-token", pipeline)) as client:
+    with TestClient(create_app("expected-token", cast(Any, pipeline))) as client:
         response = client.get(
             "/v1/health",
             headers={"X-Worker-Token": "expected-token"},
@@ -183,7 +184,9 @@ def test_second_oom_does_not_persist_speech_or_text(
         oom_error_type=FakeCudaOutOfMemoryError,
     )
 
-    with TestClient(create_app("expected-token", pipeline, recovery)) as client:
+    with TestClient(
+        create_app("expected-token", cast(Any, pipeline), recovery)
+    ) as client:
         create_response = client.post(
             "/v1/speaker-sessions",
             content=b"reference-wav",
@@ -240,7 +243,7 @@ class AlwaysOomPipeline:
 
     def translate_phrase(
         self,
-        session_id: object,
+        session_id: Any,
         target_language: str,
         audio_wav: bytes,
         *,
@@ -270,7 +273,7 @@ class AlwaysOomPipeline:
 class NonOomPipeline(AlwaysOomPipeline):
     def translate_phrase(
         self,
-        session_id: object,
+        session_id: Any,
         target_language: str,
         audio_wav: bytes,
         *,
@@ -293,7 +296,7 @@ class RecordingProfileController:
 
 class FakeConditioner:
     @staticmethod
-    def create(reference_wav: bytes) -> object:
+    def create(reference_wav: bytes) -> Any:
         return object()
 
 
@@ -330,7 +333,7 @@ class FakeTranslator:
 class FakeSynthesizer:
     @staticmethod
     def synthesize(
-        session_id: object,
+        session_id: Any,
         text: str,
         target_code: str,
     ) -> bytes:

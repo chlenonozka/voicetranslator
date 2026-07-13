@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 import logging
 import sys
 from threading import Lock
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 from fastapi import (
@@ -74,7 +74,7 @@ def create_app(
             "release_memory",
             None,
         )
-        recovery_options = {"registry": pipeline}
+        recovery_options: dict[str, Any] = {"registry": pipeline}
         if resolver is not None:
             recovery_options["oom_error_resolver"] = resolver
         if release_memory is not None:
@@ -184,15 +184,23 @@ def create_app(
         _validate_upload_size(audio_wav)
 
         try:
-            result = await run_in_threadpool(
-                active_recovery.run,
-                lambda profile: active_pipeline.translate_phrase(
+            if active_recovery is not None:
+                result = await run_in_threadpool(
+                    active_recovery.run,
+                    lambda profile: active_pipeline.translate_phrase(
+                        session_id,
+                        target_language,
+                        audio_wav,
+                        performance_profile=profile,
+                    ),
+                )
+            else:
+                result = await run_in_threadpool(
+                    active_pipeline.translate_phrase,
                     session_id,
                     target_language,
                     audio_wav,
-                    performance_profile=profile,
-                ),
-            )
+                )
             _reject_cancelled(cancellations, request_id)
         except SpeakerSessionNotFound as error:
             raise HTTPException(
