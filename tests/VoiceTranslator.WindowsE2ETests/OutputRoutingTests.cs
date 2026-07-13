@@ -78,7 +78,7 @@ public sealed class OutputRoutingTests
         bool blockPlayback = false) : ISynthesizedAudioSink
     {
         private readonly TaskCompletionSource unblock =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
+            new();
         private TaskCompletionSource? _tcs;
         private int _expectedCount;
         private readonly object _lock = new();
@@ -145,21 +145,12 @@ public sealed class OutputRoutingTests
                 }
 
                 _expectedCount = expected;
-                _tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _tcs = new TaskCompletionSource();
                 waitTask = _tcs.Task;
             }
 
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            try
-            {
-                await waitTask.WaitAsync(timeout.Token);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (TimeoutException)
-            {
-            }
+            await waitTask.WaitAsync(timeout.Token);
             played.Count.Should().BeGreaterThanOrEqualTo(expected);
         }
     }
