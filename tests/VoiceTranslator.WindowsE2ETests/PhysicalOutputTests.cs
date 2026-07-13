@@ -163,7 +163,7 @@ public sealed class PhysicalOutputTests
                 }
 
                 _expectedCount = expected;
-                _tcs = new TaskCompletionSource();
+                _tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 waitTask = _tcs.Task;
             }
 

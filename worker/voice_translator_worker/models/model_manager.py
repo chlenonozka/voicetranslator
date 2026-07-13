@@ -41,9 +41,7 @@ class ModelManifest:
             repo_id=str(payload["repo_id"]),
             revision=str(payload["revision"]),
             license=str(payload["license"]),
-            commercial_use_allowed=bool(
-                payload["commercial_use_allowed"]
-            ),
+            commercial_use_allowed=bool(payload["commercial_use_allowed"]),
             files=tuple(payload.get("files", [])),
         )
         manifest.validate()
@@ -67,18 +65,13 @@ class ModelManager:
         artifact_preparer: ArtifactPreparer | None = None,
     ) -> None:
         self.model_root = model_root
-        self.snapshot_downloader = (
-            snapshot_downloader or _snapshot_download
-        )
-        self.artifact_preparer = (
-            artifact_preparer or _prepare_ctranslate2_artifacts
-        )
+        self.snapshot_downloader = snapshot_downloader or _snapshot_download
+        self.artifact_preparer = artifact_preparer or _prepare_ctranslate2_artifacts
 
     def ensure_license(self, model_id: str, accepted: bool) -> None:
         if model_id in {"nllb-600m", "xtts-v2"} and not accepted:
             raise LicenseNotAccepted(
-                f"{model_id} requires explicit personal-use license "
-                "acknowledgement."
+                f"{model_id} requires explicit personal-use license acknowledgement."
             )
 
     @staticmethod
@@ -100,9 +93,7 @@ class ModelManager:
         download_dir = model_dir
         if manifest.id == "nllb-600m":
             download_dir = (
-                self.model_root
-                / ".downloads"
-                / f"{manifest.id}-{manifest.revision}"
+                self.model_root / ".downloads" / f"{manifest.id}-{manifest.revision}"
             )
         self.snapshot_downloader(
             repo_id=manifest.repo_id,
@@ -143,8 +134,7 @@ class ModelManager:
                     "repo_id": manifest.repo_id,
                     "revision": manifest.revision,
                     "license": manifest.license,
-                    "commercial_use_allowed":
-                        manifest.commercial_use_allowed,
+                    "commercial_use_allowed": manifest.commercial_use_allowed,
                     "files": files,
                 },
                 indent=2,
@@ -173,18 +163,13 @@ class ModelManager:
             )
             for entry in files
             if (model_dir / str(entry["path"])).is_file()
-        ) and all(
-            (model_dir / str(entry["path"])).is_file()
-            for entry in files
-        )
+        ) and all((model_dir / str(entry["path"])).is_file() for entry in files)
 
     def _update_verified_inventory(self, model_id: str) -> None:
         self.model_root.mkdir(parents=True, exist_ok=True)
         inventory_path = self.model_root / "verified-models.json"
         try:
-            inventory = json.loads(
-                inventory_path.read_text(encoding="utf-8")
-            )
+            inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             inventory = {"verified": []}
 
@@ -219,9 +204,7 @@ def _prepare_ctranslate2_artifacts(
     output_dir: Path,
 ) -> None:
     if manifest.id != "nllb-600m":
-        raise ManifestError(
-            f"No artifact preparer is registered for {manifest.id}."
-        )
+        raise ManifestError(f"No artifact preparer is registered for {manifest.id}.")
 
     from ctranslate2.converters import TransformersConverter
 

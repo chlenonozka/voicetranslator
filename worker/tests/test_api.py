@@ -243,8 +243,7 @@ def test_speaker_conditioning_failure_returns_diagnostic_detail() -> None:
 
     assert response.status_code == 502
     assert response.json()["detail"] == (
-        "speaker conditioning failed: RuntimeError: "
-        "XTTS conditioning unavailable"
+        "speaker conditioning failed: RuntimeError: XTTS conditioning unavailable"
     )
 
 
@@ -278,8 +277,7 @@ def test_unknown_translation_failure_returns_diagnostic_detail() -> None:
 
     assert response.status_code == 502
     assert response.json()["detail"] == (
-        "translation pipeline failed: RuntimeError: "
-        "NLLB translation unavailable"
+        "translation pipeline failed: RuntimeError: NLLB translation unavailable"
     )
 
 

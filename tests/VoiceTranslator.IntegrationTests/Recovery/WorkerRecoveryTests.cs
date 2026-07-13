@@ -69,7 +69,7 @@ public sealed class WorkerRecoveryTests
         var stopwatch = Stopwatch.StartNew();
 
         bool healthy = await coordinator.CheckHeartbeatAsync(
-            async ct => await new TaskCompletionSource().Task.WaitAsync(ct),
+            async ct => await new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task.WaitAsync(ct),
             CancellationToken.None);
 
         stopwatch.Stop();
@@ -197,7 +197,7 @@ public sealed class WorkerRecoveryTests
             stopped.TrySetResult();
             if (Hang)
             {
-                return new TaskCompletionSource().Task.WaitAsync(cancellationToken);
+                return new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task.WaitAsync(cancellationToken);
             }
 
             return Task.CompletedTask;
@@ -260,7 +260,7 @@ public sealed class WorkerRecoveryTests
             CancellationToken cancellationToken)
         {
             return HangHeartbeatIgnoringCancellation
-                ? new TaskCompletionSource().Task
+                ? new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task
                 : Task.CompletedTask;
         }
     }

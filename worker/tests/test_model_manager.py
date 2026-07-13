@@ -162,10 +162,7 @@ def test_nllb_download_prepares_ctranslate2_artifacts_before_receipt(
     receipt = manager.download(manifest, license_accepted=True)
 
     source_dir = (
-        tmp_path
-        / "models"
-        / ".downloads"
-        / f"{manifest.id}-{manifest.revision}"
+        tmp_path / "models" / ".downloads" / f"{manifest.id}-{manifest.revision}"
     )
     output_dir = tmp_path / "models" / manifest.id
     assert prepared == [(source_dir, output_dir)]

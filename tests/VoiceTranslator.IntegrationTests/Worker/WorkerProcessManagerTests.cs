@@ -87,7 +87,7 @@ public sealed class WorkerProcessManagerTests
         public Task WaitForExitAsync(
             LaunchedWorker worker,
             CancellationToken cancellationToken) =>
-            new TaskCompletionSource().Task.WaitAsync(cancellationToken);
+            new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task.WaitAsync(cancellationToken);
     }
 
     private sealed class FakeWorkerHealthProbe : IWorkerHealthProbe

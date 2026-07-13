@@ -23,9 +23,7 @@ class OomRecovery:
         self.registry = registry
         self.release_memory = release_memory
         self.oom_error_type = oom_error_type
-        self.oom_error_resolver = (
-            oom_error_resolver or _torch_oom_error_type
-        )
+        self.oom_error_resolver = oom_error_resolver or _torch_oom_error_type
 
     def run(self, operation: Callable[[str], ResultT]) -> ResultT:
         try:

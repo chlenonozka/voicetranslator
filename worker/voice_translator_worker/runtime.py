@@ -101,9 +101,7 @@ class ResidencyConditioner:
         self.residency = residency
 
     def create(self, reference_wav: bytes) -> object:
-        return self.residency.require_loaded().conditioner.create(
-            reference_wav
-        )
+        return self.residency.require_loaded().conditioner.create(reference_wav)
 
 
 class ResidencyAsr:
@@ -178,9 +176,7 @@ class LazyLocalModelLoader:
             str(nllb_path),
             local_files_only=True,
         )
-        xtts = InMemoryCoquiXttsAdapter.load(
-            model_root / "xtts-v2"
-        )
+        xtts = InMemoryCoquiXttsAdapter.load(model_root / "xtts-v2")
 
         def unload() -> None:
             unload_whisper = getattr(whisper, "unload_model", None)
@@ -313,8 +309,7 @@ def create_runtime_app(
         model_inventory=ModelManager(config.model_root),
         cuda_inspector=_inspect_runtime_cuda,
         language_probe=lambda target_code: (
-            pipeline is not None
-            and target_code in TARGET_LANGUAGES
+            pipeline is not None and target_code in TARGET_LANGUAGES
         ),
     )
     return create_app(
@@ -339,10 +334,7 @@ def _has_verified_models(
         return False
 
     manager = ModelManager(model_root)
-    return all(
-        manager.verify_installed(model_id)
-        for model_id in REQUIRED_MODEL_IDS
-    )
+    return all(manager.verify_installed(model_id) for model_id in REQUIRED_MODEL_IDS)
 
 
 def _load_pcm16_wave(reference_wav: bytes) -> tuple[object, int]:

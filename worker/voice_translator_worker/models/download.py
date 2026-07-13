@@ -70,16 +70,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
         "--accept-noncommercial",
         action="store_true",
         help=(
-            "Acknowledge that restricted models are for personal, "
-            "noncommercial use."
+            "Acknowledge that restricted models are for personal, noncommercial use."
         ),
     )
     options = parser.parse_args(arguments)
     model_ids = options.model_ids or DEFAULT_MODEL_IDS
     invalid_model_ids = [
-        model_id
-        for model_id in model_ids
-        if model_id not in DEFAULT_MODEL_IDS
+        model_id for model_id in model_ids if model_id not in DEFAULT_MODEL_IDS
     ]
     if invalid_model_ids:
         parser.error(

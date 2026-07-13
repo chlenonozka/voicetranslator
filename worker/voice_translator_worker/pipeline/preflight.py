@@ -63,11 +63,7 @@ class PreflightService:
         )
         cuda = self.cuda_inspector()
         available_languages: tuple[str, ...] = ()
-        if (
-            not missing_models
-            and cuda.available
-            and self.language_probe is not None
-        ):
+        if not missing_models and cuda.available and self.language_probe is not None:
             available_languages = tuple(
                 target_code
                 for target_code in TARGET_LANGUAGES
@@ -75,11 +71,7 @@ class PreflightService:
             )
 
         return PreflightReport(
-            ready=(
-                not missing_models
-                and cuda.available
-                and bool(available_languages)
-            ),
+            ready=(not missing_models and cuda.available and bool(available_languages)),
             cuda_available=cuda.available,
             device_name=cuda.device_name,
             total_vram_bytes=cuda.total_bytes,

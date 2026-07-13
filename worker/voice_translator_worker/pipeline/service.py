@@ -93,9 +93,7 @@ class PhrasePipeline:
         self.profile_controller = profile_controller or StaticModelResidency()
 
     def create_speaker_session(self, reference_wav: bytes) -> UUID:
-        self.profile_controller.activate_profile(
-            self.performance_profile
-        )
+        self.profile_controller.activate_profile(self.performance_profile)
         session_id = uuid4()
         conditioning = self.conditioner.create(reference_wav)
         self.sessions.put(session_id, bytearray(reference_wav), conditioning)
