@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import sys
 import wave
 from collections.abc import Callable
 from typing import Any
@@ -35,6 +36,38 @@ REQUIRED_MODEL_IDS = frozenset(
         "xtts-v2",
     }
 )
+
+_WINDOWS_CUDA_DLL_HANDLES: list[Any] = []
+_WINDOWS_CUDA_DLL_DIRECTORIES: set[str] = set()
+
+
+def _configure_windows_cuda_runtime() -> None:
+    if os.name != "nt":
+        return
+
+    torch_library_directory = (
+        Path(sys.prefix)
+        / "Lib"
+        / "site-packages"
+        / "torch"
+        / "lib"
+    )
+    directory_text = str(torch_library_directory)
+    if (
+        not torch_library_directory.is_dir()
+        or directory_text in _WINDOWS_CUDA_DLL_DIRECTORIES
+    ):
+        return
+
+    os.environ["PATH"] = os.pathsep.join(
+        (directory_text, os.environ.get("PATH", ""))
+    )
+    add_dll_directory = getattr(os, "add_dll_directory", None)
+    if add_dll_directory is not None:
+        _WINDOWS_CUDA_DLL_HANDLES.append(
+            add_dll_directory(directory_text)
+        )
+    _WINDOWS_CUDA_DLL_DIRECTORIES.add(directory_text)
 
 
 @dataclass(frozen=True)
@@ -159,6 +192,9 @@ class LazyLocalModelLoader:
         whisper_model: str,
         model_root: Path,
     ) -> LoadedModelSet:
+        __import__("torch")
+        _configure_windows_cuda_runtime()
+
         from ctranslate2 import Translator
         from faster_whisper import WhisperModel
         from transformers import AutoTokenizer

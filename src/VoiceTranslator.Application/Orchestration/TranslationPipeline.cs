@@ -91,7 +91,11 @@ public sealed class TranslationPipeline : IDisposable, ISessionStopper
 
                 try
                 {
-                    output.Play(translated);
+                    await output
+                        .PlayAsync(
+                            translated,
+                            linkedCancellation.Token)
+                        .ConfigureAwait(false);
                 }
                 finally
                 {

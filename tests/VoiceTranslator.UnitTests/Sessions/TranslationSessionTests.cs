@@ -7,24 +7,10 @@ namespace VoiceTranslator.UnitTests.Sessions;
 public sealed class TranslationSessionTests
 {
     [Fact]
-    public void StartRequiresSpeakerConsent()
-    {
-        TranslationSession session =
-            TranslationSession.Create(TargetLanguage.English);
-
-        Action act = session.Start;
-
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*consent*");
-    }
-
-    [Fact]
     public void StartRequiresReadyState()
     {
         TranslationSession session =
             TranslationSession.Create(TargetLanguage.English);
-        session.GrantSpeakerConsent(DateTimeOffset.UtcNow);
-
         Action act = session.Start;
 
         act.Should().Throw<InvalidOperationException>()
@@ -36,7 +22,6 @@ public sealed class TranslationSessionTests
     {
         TranslationSession session =
             TranslationSession.Create(TargetLanguage.English);
-        session.GrantSpeakerConsent(DateTimeOffset.UtcNow);
         session.MarkReady();
         session.Start();
 

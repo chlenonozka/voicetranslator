@@ -59,7 +59,7 @@
 - [x] T040 [US1] Implement worker process launch, health, restart and token creation in `src/VoiceTranslator.Infrastructure.LocalWorker/WorkerProcessManager.cs`
 - [x] T041 [US1] Implement WASAPI capture/playback and limiter in `src/VoiceTranslator.Infrastructure.Audio/`
 - [x] T042 [US1] Implement bounded phrase orchestration in `src/VoiceTranslator.Application/Orchestration/TranslationPipeline.cs`
-- [x] T043 [US1] Implement WPF consent, target language, status and start/stop flow in `src/VoiceTranslator.App/`
+- [x] T043 [US1] Implement WPF voice-profile, target language, status and start/stop flow in `src/VoiceTranslator.App/`
 - [x] T044 [US1] Add RTX 3070 physical-output acceptance test in `tests/VoiceTranslator.WindowsE2ETests/PhysicalOutputTests.cs`
 
 ## Phase 6: User Story 2 — Languages, models and routes

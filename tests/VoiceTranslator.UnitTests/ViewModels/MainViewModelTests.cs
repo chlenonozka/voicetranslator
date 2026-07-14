@@ -5,6 +5,7 @@ using VoiceTranslator.Domain.Languages;
 using VoiceTranslator.Domain.Sessions;
 using VoiceTranslator.Infrastructure.Audio.Devices;
 using VoiceTranslator.Application.Ports;
+using VoiceTranslator.App.Services;
 
 namespace VoiceTranslator.UnitTests.ViewModels;
 
@@ -21,7 +22,7 @@ public sealed class MainViewModelTests
             candidate => candidate.SelectedMicrophone = null,
             candidate => candidate.SelectedPhysicalOutput = null,
             candidate => candidate.SelectedTargetLanguage = null,
-            candidate => candidate.SpeakerConsentAccepted = false,
+            candidate => candidate.ApplyVoiceProfiles([]),
             candidate => candidate.IsWorkerReady = false,
         ];
 
@@ -80,42 +81,67 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public void StopClearsPerSessionSpeakerConsent()
+    public void StopKeepsSelectedVoiceProfile()
     {
         MainViewModel viewModel = CreateReadyViewModel();
         viewModel.StartCommand.Execute(null);
 
         viewModel.StopCommand.Execute(null);
 
-        viewModel.SpeakerConsentAccepted.Should().BeFalse();
-        viewModel.StartCommand.CanExecute(null).Should().BeFalse();
+        viewModel.SelectedVoiceProfile.Should().NotBeNull();
     }
 
     [Fact]
-    public void StartingAgainRequiresAnExplicitNewSessionAndFreshConsent()
+    public void StartingAgainRequiresAnExplicitNewSessionButKeepsProfile()
     {
         MainViewModel viewModel = CreateReadyViewModel();
         viewModel.StartCommand.Execute(null);
         viewModel.StopCommand.Execute(null);
-
-        viewModel.SpeakerConsentAccepted = true;
 
         viewModel.State.Should().Be(SessionState.Stopped);
         viewModel.StartCommand.CanExecute(null).Should().BeFalse();
         viewModel.NewSessionCommand.CanExecute(null).Should().BeTrue();
-        viewModel.StatusMessage.Should().Be("Translation stopped. Start a new session to continue.");
+        viewModel.StatusMessage.Should().Be(
+            "Перевод остановлен. Создайте новую сессию, чтобы продолжить.");
 
         viewModel.NewSessionCommand.Execute(null);
 
-        viewModel.State.Should().Be(SessionState.Draft);
-        viewModel.SpeakerConsentAccepted.Should().BeFalse();
-        viewModel.StartCommand.CanExecute(null).Should().BeFalse();
+        viewModel.State.Should().Be(SessionState.Ready);
+        viewModel.SelectedVoiceProfile.Should().NotBeNull();
+        viewModel.StartCommand.CanExecute(null).Should().BeTrue();
         viewModel.NewSessionCommand.CanExecute(null).Should().BeFalse();
+    }
 
-        viewModel.SpeakerConsentAccepted = true;
+    [Fact]
+    public void NewProfileNameEnablesStartWithoutSavedProfile()
+    {
+        MainViewModel viewModel = CreateReadyViewModel();
 
+        viewModel.NewVoiceProfileCommand.Execute(null);
+        viewModel.VoiceProfileName = "Новый голос";
+
+        viewModel.SelectedVoiceProfile.Should().BeNull();
         viewModel.State.Should().Be(SessionState.Ready);
         viewModel.StartCommand.CanExecute(null).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ProfileCommandsRequestRenameAndDelete()
+    {
+        MainViewModel viewModel = CreateReadyViewModel();
+        VoiceProfile selected = viewModel.SelectedVoiceProfile!;
+        (VoiceProfile Profile, string Name)? rename = null;
+        VoiceProfile? deleted = null;
+        viewModel.RenameVoiceProfileRequested +=
+            (profile, name) => rename = (profile, name);
+        viewModel.DeleteVoiceProfileRequested += profile => deleted = profile;
+
+        viewModel.VoiceProfileName = "Основной голос";
+        viewModel.RenameVoiceProfileCommand.Execute(null);
+        viewModel.DeleteVoiceProfileCommand.Execute(null);
+
+        rename.Should().Be((selected, "Основной голос"));
+        deleted.Should().Be(selected);
     }
 
     [Fact]
@@ -125,8 +151,8 @@ public sealed class MainViewModelTests
 
         viewModel.TargetLanguages.Should().BeEquivalentTo(TargetLanguage.All);
         viewModel.StartCommand.CanExecute(null).Should().BeFalse();
-        viewModel.StatusMessage.Should().Contain("worker");
-        viewModel.StatusMessage.Should().Contain("model");
+        viewModel.StatusMessage.Should().Contain("обработчик");
+        viewModel.StatusMessage.Should().Contain("модели");
     }
 
     [Fact]
@@ -172,11 +198,14 @@ public sealed class MainViewModelTests
 
         viewModel.ReportInputLevel(125);
         viewModel.ReportOutputLevel(double.NaN);
-        viewModel.ReportActivity("Translating phrase.");
+        viewModel.ReportActivity("Обрабатываю фразу.");
+        viewModel.ReportTranslationProgress(125, "Озвучивание");
 
         viewModel.InputLevelPercent.Should().Be(100);
         viewModel.OutputLevelPercent.Should().Be(0);
-        viewModel.ActivityMessage.Should().Be("Translating phrase.");
+        viewModel.ActivityMessage.Should().Be("Обрабатываю фразу.");
+        viewModel.TranslationProgressPercent.Should().Be(100);
+        viewModel.TranslationProgressLabel.Should().Be("Озвучивание");
     }
 
     [Fact]
@@ -198,7 +227,8 @@ public sealed class MainViewModelTests
         viewModel.IsWorkerReady.Should().BeTrue();
         viewModel.IsModelPreflightPassed.Should().BeTrue();
         viewModel.PerformanceProfile.Should().Be("balanced");
-        viewModel.ModelInventorySummary.Should().Contain("All models verified");
+        viewModel.ModelInventorySummary.Should().Contain("Все модели проверены");
+        viewModel.PerformanceProfileDisplay.Should().Be("Сбалансированный");
     }
 
     [Fact]
@@ -243,13 +273,13 @@ public sealed class MainViewModelTests
         viewModel.SelectedPhysicalOutput = null;
 
         viewModel.StartCommand.CanExecute(null).Should().BeFalse();
-        viewModel.StatusMessage.Should().Contain("virtual cable");
+        viewModel.StatusMessage.Should().Contain("виртуального кабеля");
 
         viewModel.SelectedVirtualOutput =
             new AudioDeviceInfo("virtual", "VB-CABLE", true);
 
         viewModel.StartCommand.CanExecute(null).Should().BeFalse();
-        viewModel.StatusMessage.Should().Contain("output channel test");
+        viewModel.StatusMessage.Should().Contain("канал вывода");
 
         viewModel.ApplyOutputChannelTest(
             new OutputChannelTestResult(Passed: true, Warning: null));
@@ -303,7 +333,7 @@ public sealed class MainViewModelTests
 
     private static MainViewModel CreateReadyViewModel()
     {
-        return new MainViewModel
+        var viewModel = new MainViewModel
         {
             IsModelPreflightPassed = true,
             SelectedMicrophone =
@@ -311,8 +341,15 @@ public sealed class MainViewModelTests
             SelectedPhysicalOutput =
                 new AudioDeviceInfo("out", "Test speakers", false),
             SelectedTargetLanguage = TargetLanguage.English,
-            SpeakerConsentAccepted = true,
             IsWorkerReady = true,
         };
+        viewModel.ApplyVoiceProfiles(
+        [
+            new VoiceProfile(
+                Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                "Основной",
+                DateTimeOffset.UtcNow),
+        ]);
+        return viewModel;
     }
 }

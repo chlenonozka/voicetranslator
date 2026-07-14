@@ -13,7 +13,7 @@ public sealed class OutputChannelTestService
         {
             return new OutputChannelTestResult(
                 Passed: false,
-                Warning: "Output channel test has no audio payload.");
+                Warning: "Для проверки канала вывода нет аудиоданных.");
         }
 
         try
@@ -23,11 +23,11 @@ public sealed class OutputChannelTestService
                 Passed: true,
                 Warning: null);
         }
-        catch (Exception error)
+        catch (Exception)
         {
             return new OutputChannelTestResult(
                 Passed: false,
-                Warning: $"Output channel test failed: {error.Message}");
+                Warning: "Не удалось проверить канал вывода.");
         }
         finally
         {

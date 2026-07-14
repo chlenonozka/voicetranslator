@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Threading.Channels;
 using VoiceTranslator.Application.Orchestration;
 using VoiceTranslator.Application.Ports;
@@ -13,6 +14,7 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
     private readonly IAudioPlaybackSink output;
     private readonly string targetLanguage;
     private readonly ISessionFailureObserver? failureObserver;
+    private readonly Func<byte[], CancellationToken, Task>? referenceCaptured;
     private readonly Pcm16PhraseSegmenter segmenter = new(
         sampleRate: 16_000,
         silenceDuration: TimeSpan.FromMilliseconds(500),
@@ -29,6 +31,8 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
     private TranslationPipeline? pipeline;
     private Task? consumer;
     private Guid? speakerSessionId;
+    private CancellationTokenSource? activeProgressAnimation;
+    private byte[]? initialReferenceWav;
     private int started;
     private int stopped;
 
@@ -37,13 +41,17 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
         IAudioCaptureSource capture,
         IAudioPlaybackSink output,
         string targetLanguage,
-        ISessionFailureObserver? failureObserver = null)
+        ISessionFailureObserver? failureObserver = null,
+        byte[]? existingReferenceWav = null,
+        Func<byte[], CancellationToken, Task>? referenceCaptured = null)
     {
         this.worker = worker;
         this.capture = capture;
         this.output = output;
         this.targetLanguage = targetLanguage;
         this.failureObserver = failureObserver;
+        initialReferenceWav = existingReferenceWav;
+        this.referenceCaptured = referenceCaptured;
     }
 
     public event Action<Exception>? Failed;
@@ -53,6 +61,8 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
     public event Action<double>? OutputLevelChanged;
 
     public event Action<string>? ActivityChanged;
+
+    public event Action<int, string>? ProgressChanged;
 
     public void Start()
     {
@@ -66,8 +76,10 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
 
         capture.AudioAvailable += OnAudioAvailable;
         consumer = ConsumeAsync(cancellation.Token);
-        ActivityChanged?.Invoke(
-            "Listening. First completed phrase becomes the voice reference.");
+        ActivityChanged?.Invoke(initialReferenceWav is null
+            ? "Слушаю. Первая завершённая фраза станет образцом нового голосового профиля."
+            : "Загружаю выбранный голосовой профиль. Первая фраза будет переведена.");
+        ProgressChanged?.Invoke(0, "Ожидание речи");
         capture.StartCapture();
     }
 
@@ -88,6 +100,7 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
         capture.StopCapture();
         completedPhrases.Writer.TryComplete();
         await cancellation.CancelAsync().ConfigureAwait(false);
+        StopProgressAnimation();
 
         if (consumer is not null)
         {
@@ -147,7 +160,8 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
             byte[]? phrase = segmenter.Push(normalized);
             if (phrase is not null)
             {
-                ActivityChanged?.Invoke("Phrase captured.");
+                ActivityChanged?.Invoke("Фраза записана.");
+                ProgressChanged?.Invoke(10, "Фраза записана");
                 _ = completedPhrases.Writer.TryWrite(phrase);
             }
         }
@@ -161,41 +175,74 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
     {
         try
         {
+            byte[]? existingReference = Interlocked.Exchange(
+                ref initialReferenceWav,
+                null);
+            if (existingReference is not null)
+            {
+                try
+                {
+                    ActivityChanged?.Invoke("Загружаю голосовой профиль.");
+                    await InitializeSpeakerSessionAsync(
+                            existingReference,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                    ProgressChanged?.Invoke(100, "Голосовой профиль готов");
+                    ActivityChanged?.Invoke(
+                        "Голосовой профиль готов. Слушаю речь для перевода.");
+                }
+                finally
+                {
+                    CryptographicOperations.ZeroMemory(existingReference);
+                }
+            }
+
             await foreach (byte[] pcm in completedPhrases.Reader
                 .ReadAllAsync(cancellationToken)
                 .ConfigureAwait(false))
             {
                 if (speakerSessionId is null)
                 {
-                    ActivityChanged?.Invoke("Creating voice reference.");
-                    speakerSessionId = await worker
-                        .CreateSpeakerSessionAsync(
-                            WaveMemoryCodec.EncodeWorkerWave(pcm),
+                    ActivityChanged?.Invoke("Создаю голосовой профиль.");
+                    byte[] referenceWav = WaveMemoryCodec.EncodeWorkerWave(pcm);
+                    await InitializeSpeakerSessionAsync(
+                            referenceWav,
                             cancellationToken)
                         .ConfigureAwait(false);
-                    pipeline = new TranslationPipeline(
-                        new SessionPhraseTranslationWorker(
-                            worker,
-                            speakerSessionId.Value,
-                            targetLanguage),
-                        new ReportingPlaybackSink(
-                            output,
-                            OutputLevelChanged,
-                            ActivityChanged),
-                        queueCapacity: 2,
-                        failureObserver: failureObserver);
+                    if (referenceCaptured is not null)
+                    {
+                        await referenceCaptured(referenceWav, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                    ProgressChanged?.Invoke(100, "Голосовой профиль готов");
                     ActivityChanged?.Invoke(
-                        "Voice reference ready. Speak the next Russian phrase to translate.");
+                        "Голосовой профиль готов. Произнесите следующую фразу для перевода.");
                     continue;
                 }
 
-                ActivityChanged?.Invoke("Translating phrase.");
+                ActivityChanged?.Invoke("Обрабатываю фразу.");
                 pipeline!.Enqueue(new Phrase(
                     Guid.NewGuid().ToString("D"),
                     pcm));
-                await pipeline
-                    .ProcessQueuedAsync(cancellationToken)
-                    .ConfigureAwait(false);
+                try
+                {
+                    await RunWithAnimatedProgressAsync(
+                            () => pipeline.ProcessQueuedAsync(
+                                cancellationToken),
+                            startPercent: 20,
+                            limitPercent: 90,
+                            label: "Распознавание и перевод",
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (HttpRequestException error)
+                    when (error.StatusCode
+                        == System.Net.HttpStatusCode.UnprocessableEntity)
+                {
+                    ProgressChanged?.Invoke(0, "Фраза не распознана");
+                    ActivityChanged?.Invoke(
+                        "Фраза не распознана. Говорите немного дольше и сделайте короткую паузу. Сессия продолжает работать.");
+                }
             }
         }
         catch (OperationCanceledException)
@@ -230,17 +277,145 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
         return Math.Clamp(rms * 200, 0, 100);
     }
 
+    private async Task RunWithAnimatedProgressAsync(
+        Func<Task> operation,
+        int startPercent,
+        int limitPercent,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        using var animationCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken);
+        activeProgressAnimation = animationCancellation;
+        Task animation = AnimateProgressAsync(
+            startPercent,
+            limitPercent,
+            label,
+            animationCancellation.Token);
+        try
+        {
+            await operation().ConfigureAwait(false);
+        }
+        finally
+        {
+            await animationCancellation.CancelAsync().ConfigureAwait(false);
+            try
+            {
+                await animation.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
+            Interlocked.CompareExchange(
+                ref activeProgressAnimation,
+                null,
+                animationCancellation);
+        }
+    }
+
+    private async Task InitializeSpeakerSessionAsync(
+        byte[] referenceWav,
+        CancellationToken cancellationToken)
+    {
+        Guid createdSessionId = Guid.Empty;
+        await RunWithAnimatedProgressAsync(
+                async () =>
+                {
+                    createdSessionId = await worker
+                        .CreateSpeakerSessionAsync(
+                            referenceWav,
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                },
+                startPercent: 15,
+                limitPercent: 90,
+                label: "Создание голосового профиля",
+                cancellationToken)
+            .ConfigureAwait(false);
+        speakerSessionId = createdSessionId;
+        pipeline = new TranslationPipeline(
+            new SessionPhraseTranslationWorker(
+                worker,
+                createdSessionId,
+                targetLanguage),
+            new ReportingPlaybackSink(
+                output,
+                OutputLevelChanged,
+                ActivityChanged,
+                ProgressChanged,
+                StopProgressAnimation),
+            queueCapacity: 2,
+            failureObserver: failureObserver);
+    }
+
+    private async Task AnimateProgressAsync(
+        int startPercent,
+        int limitPercent,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        ProgressChanged?.Invoke(startPercent, label);
+        var startedAt = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            await Task
+                .Delay(TimeSpan.FromMilliseconds(100), cancellationToken)
+                .ConfigureAwait(false);
+            double fraction = Math.Min(
+                startedAt.Elapsed.TotalSeconds / 5.0,
+                1.0);
+            int percent = startPercent + (int)Math.Round(
+                (limitPercent - startPercent) * fraction);
+            ProgressChanged?.Invoke(percent, label);
+        }
+    }
+
+    private void StopProgressAnimation()
+    {
+        CancellationTokenSource? animation =
+            Volatile.Read(ref activeProgressAnimation);
+        animation?.Cancel();
+    }
+
     private sealed class ReportingPlaybackSink(
         IAudioPlaybackSink inner,
         Action<double>? outputLevelChanged,
-        Action<string>? activityChanged) : IAudioPlaybackSink
+        Action<string>? activityChanged,
+        Action<int, string>? progressChanged,
+        Action stopProgressAnimation) : IAudioPlaybackSink
     {
         public void Play(byte[] pcm)
         {
             outputLevelChanged?.Invoke(
                 CalculatePcm16LevelPercent(pcm));
-            activityChanged?.Invoke("Playing translated speech.");
+            activityChanged?.Invoke("Озвучиваю перевод.");
             inner.Play(pcm);
+        }
+
+        public async Task PlayAsync(
+            byte[] pcm,
+            CancellationToken cancellationToken)
+        {
+            stopProgressAnimation();
+            outputLevelChanged?.Invoke(
+                CalculatePcm16LevelPercent(pcm));
+            progressChanged?.Invoke(94, "Озвучивание перевода");
+            activityChanged?.Invoke("Озвучиваю перевод.");
+            try
+            {
+                await inner
+                    .PlayAsync(pcm, cancellationToken)
+                    .ConfigureAwait(false);
+                progressChanged?.Invoke(100, "Перевод озвучен");
+                activityChanged?.Invoke(
+                    "Перевод озвучен. Слушаю следующую фразу.");
+            }
+            finally
+            {
+                outputLevelChanged?.Invoke(0);
+            }
         }
 
         public void StopPlayback()

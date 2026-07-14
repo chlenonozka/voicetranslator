@@ -27,7 +27,7 @@ public sealed class OutputChannelTestServiceTests
             [1]);
 
         result.Passed.Should().BeFalse();
-        result.Warning.Should().Contain("failed");
+        result.Warning.Should().Contain("Не удалось");
     }
 
     private sealed class RecordingSink(bool fail = false) : IAudioPlaybackSink

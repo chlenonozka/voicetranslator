@@ -14,12 +14,11 @@
 
 ## Start preconditions
 
-- Cloud and Personal Voice consent are current.
-- Authentication is valid.
+- A saved voice profile is selected, or a non-empty new profile name is set.
+- Local worker authentication is valid.
 - Capability catalog is unexpired.
 - Selected language pair passes provider preflight.
 - Input and every selected output endpoint are active.
-- Personal Voice access gate has passed.
 - Virtual output test has passed when selected.
 
 ## Observable state
@@ -37,5 +36,6 @@ Every state change emits:
 - Device loss stops only the affected stream, then transitions to `Faulted`.
 - Cloud timeout pauses capture after the bounded queue is full.
 - Provider throttling never triggers unbounded retries.
-- Consent revocation cancels requests, clears memory buffers, and starts cleanup.
+- Deleting a profile removes its metadata and encrypted reference before it can
+  be selected for another session.
 - Output buffers are discarded on stop; stale audio is never played later.

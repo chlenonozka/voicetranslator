@@ -29,6 +29,20 @@ public sealed class AudioOutputRoutingSink : IAudioPlaybackSink, IDisposable
         router.RouteSynthesized(SynthesizedPcmPayload.Create(pcm));
     }
 
+    public async Task PlayAsync(
+        byte[] pcm,
+        CancellationToken cancellationToken)
+    {
+        Play(pcm);
+        double seconds = pcm.Length / (24_000.0 * sizeof(short));
+        await Task
+            .Delay(
+                TimeSpan.FromSeconds(seconds)
+                + TimeSpan.FromMilliseconds(240),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public void StopPlayback()
     {
         router.StopAsync().GetAwaiter().GetResult();

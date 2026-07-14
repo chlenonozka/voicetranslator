@@ -4,12 +4,17 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:views="clr-namespace:VoiceTranslator.App.Views"
+        xmlns:controls="clr-namespace:VoiceTranslator.App.Controls"
+        xmlns:converters="clr-namespace:VoiceTranslator.App.Converters"
         mc:Ignorable="d"
-        Title="Voice Translator"
+        Title="Переводчик голоса"
         Width="760"
         Height="720"
         MinWidth="620"
         MinHeight="620">
+    <Window.Resources>
+        <converters:OutputModeDisplayConverter x:Key="OutputModeDisplayConverter" />
+    </Window.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="24">
             <Grid.RowDefinitions>
@@ -22,10 +27,10 @@
             <StackPanel>
                 <TextBlock FontSize="28"
                            FontWeight="SemiBold"
-                           Text="Russian voice translator" />
+                           Text="Переводчик русской речи" />
                 <TextBlock Margin="0,6,0,0"
                            TextWrapping="Wrap"
-                       Text="Translate Russian speech locally and play the translated voice through a physical output." />
+                           Text="Локально переводит русскую речь и воспроизводит перевод выбранным голосом." />
             </StackPanel>
 
             <views:ModelSetupView Grid.Row="1"
@@ -48,10 +53,10 @@
 
                 <StackPanel Grid.ColumnSpan="2">
                     <TextBlock FontWeight="SemiBold"
-                               Text="Target language" />
+                               Text="Язык перевода" />
                     <ComboBox Margin="0,6,0,0"
                               MinHeight="32"
-                              AutomationProperties.Name="Target language"
+                              AutomationProperties.Name="Язык перевода"
                               DisplayMemberPath="DisplayName"
                               ItemsSource="{Binding TargetLanguages}"
                               SelectedItem="{Binding SelectedTargetLanguage}" />
@@ -61,69 +66,122 @@
                             Grid.ColumnSpan="2"
                             Margin="0,14,0,0">
                     <TextBlock FontWeight="SemiBold"
-                               Text="Microphone" />
-                    <ComboBox Margin="0,6,0,0"
-                              MinHeight="32"
-                              AutomationProperties.Name="Microphone"
-                              DisplayMemberPath="Name"
-                              ItemsSource="{Binding Microphones}"
-                              SelectedItem="{Binding SelectedMicrophone}"
-                              Text="No microphones available" />
+                               Text="Голосовой профиль" />
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox MinHeight="32"
+                                  AutomationProperties.Name="Голосовой профиль"
+                                  DisplayMemberPath="Name"
+                                  ItemsSource="{Binding VoiceProfiles}"
+                                  SelectedItem="{Binding SelectedVoiceProfile}"
+                                  Text="Сохранённых профилей нет" />
+                        <Button Grid.Column="1"
+                                MinWidth="86"
+                                MinHeight="32"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Создать голосовой профиль"
+                                Command="{Binding NewVoiceProfileCommand}"
+                                Content="Новый" />
+                        <Button Grid.Column="2"
+                                MinWidth="86"
+                                MinHeight="32"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Удалить голосовой профиль"
+                                Command="{Binding DeleteVoiceProfileCommand}"
+                                Content="Удалить" />
+                    </Grid>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox MinHeight="32"
+                                 Padding="8,5"
+                                 AutomationProperties.Name="Имя голосового профиля"
+                                 MaxLength="60"
+                                 Text="{Binding VoiceProfileName, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Grid.Column="1"
+                                MinWidth="120"
+                                MinHeight="32"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Переименовать голосовой профиль"
+                                Command="{Binding RenameVoiceProfileCommand}"
+                                Content="Переименовать" />
+                    </Grid>
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="#FF5B6570"
+                               TextWrapping="Wrap"
+                               Text="Новый профиль будет создан из первой фразы и затем доступен для всех языков." />
                 </StackPanel>
 
                 <StackPanel Grid.Row="2"
                             Grid.ColumnSpan="2"
                             Margin="0,14,0,0">
                     <TextBlock FontWeight="SemiBold"
-                               Text="Physical output" />
+                               Text="Микрофон" />
                     <ComboBox Margin="0,6,0,0"
                               MinHeight="32"
-                              AutomationProperties.Name="Physical output device"
+                              AutomationProperties.Name="Микрофон"
                               DisplayMemberPath="Name"
-                              ItemsSource="{Binding PhysicalOutputs}"
-                              SelectedItem="{Binding SelectedPhysicalOutput}"
-                              Text="No physical outputs available" />
+                              ItemsSource="{Binding Microphones}"
+                              SelectedItem="{Binding SelectedMicrophone}"
+                              Text="Доступные микрофоны не найдены" />
                 </StackPanel>
 
                 <StackPanel Grid.Row="3"
                             Grid.ColumnSpan="2"
                             Margin="0,14,0,0">
                     <TextBlock FontWeight="SemiBold"
-                               Text="Output mode" />
+                               Text="Физический выход" />
                     <ComboBox Margin="0,6,0,0"
                               MinHeight="32"
-                              AutomationProperties.Name="Output mode"
-                              ItemsSource="{Binding OutputModes}"
-                              SelectedItem="{Binding SelectedOutputMode}" />
+                              AutomationProperties.Name="Устройство физического вывода"
+                              DisplayMemberPath="Name"
+                              ItemsSource="{Binding PhysicalOutputs}"
+                              SelectedItem="{Binding SelectedPhysicalOutput}"
+                              Text="Устройства вывода не найдены" />
                 </StackPanel>
 
                 <StackPanel Grid.Row="4"
                             Grid.ColumnSpan="2"
                             Margin="0,14,0,0">
                     <TextBlock FontWeight="SemiBold"
-                               Text="Virtual cable output" />
+                               Text="Режим вывода" />
                     <ComboBox Margin="0,6,0,0"
                               MinHeight="32"
-                              AutomationProperties.Name="Virtual cable output device"
+                              AutomationProperties.Name="Режим вывода"
+                              ItemsSource="{Binding OutputModes}"
+                              SelectedItem="{Binding SelectedOutputMode}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Converter={StaticResource OutputModeDisplayConverter}}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel Grid.Row="5"
+                            Grid.ColumnSpan="2"
+                            Margin="0,14,0,0">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Выход виртуального кабеля" />
+                    <ComboBox Margin="0,6,0,0"
+                              MinHeight="32"
+                              AutomationProperties.Name="Устройство виртуального кабеля"
                               DisplayMemberPath="Name"
                               ItemsSource="{Binding VirtualOutputs}"
                               SelectedItem="{Binding SelectedVirtualOutput}"
-                              Text="No virtual outputs available" />
+                              Text="Виртуальные выходы не найдены" />
                     <TextBlock Margin="0,6,0,0"
-                               AutomationProperties.Name="Output warning"
+                               AutomationProperties.Name="Предупреждение о выводе"
                                Text="{Binding OutputWarning}"
                                TextWrapping="Wrap" />
                 </StackPanel>
 
-                <CheckBox Grid.Row="5"
-                          Grid.ColumnSpan="2"
-                          Margin="0,18,0,0"
-                          Padding="0,4"
-                          AutomationProperties.Name="Speaker timbre consent"
-                          IsChecked="{Binding SpeakerConsentAccepted}">
-                    <TextBlock TextWrapping="Wrap"
-                               Text="I consent to using my speaker timbre for this session. The consent and speaker conditioning are not retained after the session." />
-                </CheckBox>
             </Grid>
 
             <StackPanel Grid.Row="3"
@@ -137,10 +195,10 @@
                     <StackPanel Grid.Column="0"
                                 Margin="0,0,8,0">
                         <TextBlock FontWeight="SemiBold"
-                                   Text="Microphone level" />
+                                   Text="Уровень микрофона" />
                         <ProgressBar Height="16"
                                      Margin="0,6,0,0"
-                                     AutomationProperties.Name="Microphone level"
+                                     AutomationProperties.Name="Уровень микрофона"
                                      Maximum="100"
                                      Value="{Binding InputLevelPercent, Mode=OneWay}" />
                     </StackPanel>
@@ -148,10 +206,10 @@
                     <StackPanel Grid.Column="1"
                                 Margin="8,0,0,0">
                         <TextBlock FontWeight="SemiBold"
-                                   Text="Output level" />
+                                   Text="Уровень вывода" />
                         <ProgressBar Height="16"
                                      Margin="0,6,0,0"
-                                     AutomationProperties.Name="Output level"
+                                     AutomationProperties.Name="Уровень вывода"
                                      Maximum="100"
                                      Value="{Binding OutputLevelPercent, Mode=OneWay}" />
                     </StackPanel>
@@ -163,10 +221,40 @@
                         BorderBrush="#FFB7C98C"
                         BorderThickness="1"
                         CornerRadius="4">
-                    <TextBlock AutomationProperties.LiveSetting="Polite"
-                               AutomationProperties.Name="Translation activity"
-                               Text="{Binding ActivityMessage}"
-                               TextWrapping="Wrap" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="76" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Width="64"
+                              Height="64"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Center">
+                            <controls:CircularProgressBar Value="{Binding TranslationProgressPercent}"
+                                                          TrackBrush="#FFD8DED0"
+                                                          ProgressBrush="#FF2E7D4F"
+                                                          StrokeThickness="6" />
+                            <TextBlock HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Text="{Binding TranslationProgressPercent, StringFormat={}{0}%}" />
+                        </Grid>
+                        <StackPanel Grid.Column="1"
+                                    VerticalAlignment="Center">
+                            <TextBlock FontSize="13"
+                                       FontWeight="SemiBold"
+                                       AutomationProperties.LiveSetting="Polite"
+                                       AutomationProperties.Name="Этап перевода"
+                                       Text="{Binding TranslationProgressLabel}"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Margin="0,4,0,0"
+                                       AutomationProperties.LiveSetting="Polite"
+                                       AutomationProperties.Name="Состояние перевода"
+                                       Text="{Binding ActivityMessage}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <Border Padding="12"
@@ -176,7 +264,7 @@
                         CornerRadius="4">
                     <TextBlock x:Name="StatusTextBlock"
                                AutomationProperties.LiveSetting="Polite"
-                               AutomationProperties.Name="Translation status"
+                               AutomationProperties.Name="Состояние сессии"
                                Text="{Binding StatusMessage}"
                                TextWrapping="Wrap" />
                 </Border>
@@ -187,21 +275,21 @@
                     <Button MinWidth="120"
                             MinHeight="38"
                             Margin="0,0,10,0"
-                            AutomationProperties.Name="Start new session"
+                            AutomationProperties.Name="Новая сессия"
                             Command="{Binding NewSessionCommand}"
-                            Content="_New session" />
+                            Content="_Новая сессия" />
                     <Button MinWidth="110"
                             MinHeight="38"
                             Margin="0,0,10,0"
-                            AutomationProperties.Name="Start translation"
+                            AutomationProperties.Name="Запустить перевод"
                             Command="{Binding StartCommand}"
-                            Content="_Start"
+                            Content="_Запустить"
                             IsDefault="True" />
                     <Button MinWidth="110"
                             MinHeight="38"
-                            AutomationProperties.Name="Stop translation"
+                            AutomationProperties.Name="Остановить перевод"
                             Command="{Binding StopCommand}"
-                            Content="S_top"
+                            Content="_Остановить"
                             IsCancel="True" />
                 </StackPanel>
             </StackPanel>

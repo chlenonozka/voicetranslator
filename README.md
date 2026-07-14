@@ -1,10 +1,12 @@
 # Voice Translator
 
 Windows 11 desktop application for local phrase-by-phrase translation of
-Russian speech into 16 target languages with session-scoped speaker timbre.
+Russian speech into 16 target languages with reusable local voice profiles.
 
-Audio, transcripts, translations, and speaker conditioning are kept in memory
-and are not intentionally persisted.
+Transcripts, translations, and ordinary session audio are kept in memory and
+are not intentionally persisted. Named voice-reference profiles are the only
+exception: they are encrypted for the current Windows user with DPAPI and
+stored under `%LOCALAPPDATA%\VoiceTranslator\VoiceProfiles`.
 
 ## License restriction
 
@@ -81,9 +83,12 @@ The launcher uses the workspace-local .NET SDK, verifies that the worker
 environment and model inventory exist, then starts the WPF application. It
 writes startup output to `artifacts\logs\voice-translator-launch.log`.
 
-The WPF application starts and stops its own worker. The first completed
-phrase after Start is used only as the ephemeral speaker reference; subsequent
-completed Russian phrases are translated. The worker binds to `127.0.0.1`,
+The WPF application starts and stops its own worker. Select an existing voice
+profile to translate the first completed phrase immediately. To create a new
+profile, click **Новый**, enter a name, and start a session; the first completed
+phrase becomes its encrypted reference and subsequent phrases are translated.
+The same profile can be selected for any target language, renamed, or deleted
+in the application. The worker binds to `127.0.0.1`,
 receives a new 256-bit token for every launch, and rejects unauthenticated
 requests.
 
@@ -91,4 +96,5 @@ requests.
 host, but it must not be started at the same time as the WPF application.
 
 Do not add downloaded models, captured audio, transcripts, translations,
-speaker references, embeddings, or launch tokens to repository files or logs.
+decrypted speaker references, embeddings, or launch tokens to repository files
+or logs.

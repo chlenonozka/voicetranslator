@@ -46,9 +46,48 @@ public sealed class AudioPipelineTests
         var buffer = output.Provider.Should()
             .BeOfType<BufferedWaveProvider>().Subject;
         buffer.DiscardOnBufferOverflow.Should().BeTrue();
-        buffer.BufferedBytes.Should().Be(4);
+        buffer.BufferDuration.Should().Be(TimeSpan.FromSeconds(60));
+        buffer.BufferedBytes.Should().BeGreaterThan(4);
 
         sink.Stop();
+
+        output.Stopped.Should().BeTrue();
+        buffer.BufferedBytes.Should().Be(0);
+    }
+
+    [Fact]
+    public void PlaybackBufferDoesNotTruncateTenSecondPhrase()
+    {
+        var output = new FakeWavePlayer();
+        using var sink = new WasapiPlaybackSink(
+            output,
+            new WaveFormat(24_000, 16, 1));
+        var pcm = new byte[24_000 * sizeof(short) * 10];
+
+        sink.Play(pcm);
+
+        var buffer = output.Provider.Should()
+            .BeOfType<BufferedWaveProvider>().Subject;
+        buffer.BufferedBytes.Should().BeGreaterThan(pcm.Length);
+    }
+
+    [Fact]
+    public async Task PlaybackCompletesAfterBufferedAudioIsConsumed()
+    {
+        var output = new FakeWavePlayer();
+        using var sink = new WasapiPlaybackSink(
+            output,
+            new WaveFormat(24_000, 16, 1));
+
+        Task playback = sink.PlayAsync(
+            new byte[2_400],
+            CancellationToken.None);
+        var buffer = output.Provider.Should()
+            .BeOfType<BufferedWaveProvider>().Subject;
+        var consumed = new byte[buffer.BufferedBytes];
+        _ = buffer.Read(consumed, 0, consumed.Length);
+
+        await playback.WaitAsync(TimeSpan.FromSeconds(2));
 
         output.Stopped.Should().BeTrue();
         buffer.BufferedBytes.Should().Be(0);

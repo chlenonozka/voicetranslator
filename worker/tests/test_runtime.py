@@ -150,11 +150,17 @@ def test_runtime_preflight_exposes_languages_when_pipeline_is_available(
     assert len(response.json()["availableLanguages"]) == 16
 
 
-def test_lazy_loader_keeps_nllb_on_cpu_to_avoid_cuda12_cublas(
+def test_lazy_loader_configures_cuda_runtime_and_keeps_nllb_on_cpu(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    cuda_runtime_configured: list[bool] = []
     translator_calls: list[dict[str, Any]] = []
+
+    monkeypatch.setattr(
+        "voice_translator_worker.runtime._configure_windows_cuda_runtime",
+        lambda: cuda_runtime_configured.append(True),
+    )
 
     class RecordingTranslator:
         def __init__(
@@ -192,6 +198,7 @@ def test_lazy_loader_keeps_nllb_on_cpu_to_avoid_cuda12_cublas(
         "ctranslate2",
         SimpleNamespace(Translator=RecordingTranslator),
     )
+    monkeypatch.setitem(sys.modules, "torch", SimpleNamespace())
     monkeypatch.setitem(
         sys.modules,
         "faster_whisper",
@@ -221,6 +228,7 @@ def test_lazy_loader_keeps_nllb_on_cpu_to_avoid_cuda12_cublas(
             "compute_type": "int8",
         }
     ]
+    assert cuda_runtime_configured == [True]
 
 
 def test_reference_wave_loader_reads_pcm16_without_torchaudio(

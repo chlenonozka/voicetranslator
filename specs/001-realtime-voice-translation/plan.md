@@ -18,9 +18,10 @@ NLLB-200 distilled 600M для текста и maintained `coqui-tts` XTTS-v2 д
 FastAPI, Uvicorn, faster-whisper/CTranslate2, transformers, sentencepiece,
 coqui-tts, PyTorch/torchaudio CUDA, huggingface_hub
 
-**Storage**: Только immutable model files, manifests, настройки устройств и
-результаты capability preflight. Аудио, текст и speaker conditioning не
-персистятся.
+**Storage**: Immutable model files, manifests, настройки устройств, результаты
+capability preflight и именованные voice references. Voice references хранятся
+в `%LOCALAPPDATA%` с DPAPI CurrentUser; обычное аудио, текст, расшифрованные
+references и speaker conditioning не персистятся.
 
 **Testing**: xUnit, pytest, OpenAPI contract tests, fake worker integration,
 Windows E2E, RTX 3070 latency/VRAM benchmarks
@@ -36,8 +37,9 @@ voice fallback
 
 ## Constitution Check
 
-- **Consent/privacy — PASS**: вся речь локальна, timbre opt-in per session,
-  ephemeral buffers очищаются на stop/crash.
+- **Privacy — PASS**: вся речь локальна, пользователь сам создаёт и удаляет
+  именованные DPAPI-зашифрованные профили, ephemeral buffers очищаются на
+  stop/crash.
 - **Responsiveness — PASS**: staged model residency, bounded queue и OOM retry.
 - **Predictable audio — PASS**: limiter, sink isolation и stale-buffer disposal.
 - **Verification — PASS**: unit/contract/integration/hardware acceptance.
@@ -97,9 +99,10 @@ tests/
 
 - faster-whisper starts with `medium`, CUDA `int8`; low-memory falls back to
   `small`, CUDA `int8`.
-- NLLB is converted to CTranslate2 and uses CPU `int8` by default to avoid
-  requiring CUDA 12 `cublas64_12.dll` alongside the PyTorch CUDA 13 runtime; it
-  is unloaded outside translation.
+- NLLB is converted to CTranslate2 and uses CPU `int8` by default. The Windows
+  worker uses the PyTorch CUDA 12.8 runtime so faster-whisper/CTranslate2 and
+  XTTS share one compatible CUDA DLL family; NLLB is unloaded outside
+  translation.
 - XTTS-v2 is loaded for speaker conditioning/synthesis and released when the
   session ends.
 - GPU manager uses `torch.cuda.mem_get_info`, `memory_reserved`,

@@ -10,8 +10,10 @@ sources where useful.
 
 The agent must:
 
-- preserve local-only handling of speech and avoid adding captured speech,
-  transcripts, translations, embeddings, tokens, or credentials to the repo;
+- preserve local-only handling of speech; named voice-reference profiles may
+  persist only in the current user's DPAPI-encrypted local store, while
+  transcripts, translations, ordinary captured phrases, decrypted references,
+  embeddings, tokens, and credentials must never be added to the repo;
 - respect the personal, noncommercial model-use restrictions in README.md;
 - keep the Windows desktop application and local worker genuinely runnable;
 - add or update focused tests and documentation with each behavioral change;

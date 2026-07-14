@@ -13,17 +13,10 @@ public sealed class TranslationSession
 
     public SessionState State { get; private set; } = SessionState.Draft;
 
-    public DateTimeOffset? SpeakerConsentAt { get; private set; }
-
     public static TranslationSession Create(TargetLanguage targetLanguage)
     {
         ArgumentNullException.ThrowIfNull(targetLanguage);
         return new TranslationSession(targetLanguage);
-    }
-
-    public void GrantSpeakerConsent(DateTimeOffset acceptedAt)
-    {
-        SpeakerConsentAt = acceptedAt;
     }
 
     public void MarkReady()
@@ -33,12 +26,6 @@ public sealed class TranslationSession
 
     public void Start()
     {
-        if (SpeakerConsentAt is null)
-        {
-            throw new InvalidOperationException(
-                "Speaker consent is required before starting.");
-        }
-
         if (State != SessionState.Ready)
         {
             throw new InvalidOperationException("Session is not ready.");

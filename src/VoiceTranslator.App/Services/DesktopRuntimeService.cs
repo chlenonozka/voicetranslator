@@ -2,6 +2,7 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Hosting;
@@ -26,6 +27,7 @@ public sealed class DesktopRuntimeService :
     IAsyncDisposable
 {
     private readonly MainViewModel viewModel;
+    private readonly VoiceProfileStore voiceProfileStore;
     private readonly WasapiDeviceCatalog devices =
         new(new CoreAudioEndpointSource());
     private readonly CancellationTokenSource lifetime = new();
@@ -39,17 +41,27 @@ public sealed class DesktopRuntimeService :
     private MMDevice? sessionOutputDevice;
     private MMDevice? sessionVirtualOutputDevice;
 
-    public DesktopRuntimeService(MainViewModel viewModel)
+    public DesktopRuntimeService(
+        MainViewModel viewModel,
+        VoiceProfileStore voiceProfileStore)
     {
         this.viewModel = viewModel;
+        this.voiceProfileStore = voiceProfileStore;
         this.viewModel.StartRequested += OnStartRequested;
         this.viewModel.StopRequested += OnStopRequested;
+        this.viewModel.RenameVoiceProfileRequested += OnRenameVoiceProfileRequested;
+        this.viewModel.DeleteVoiceProfileRequested += OnDeleteVoiceProfileRequested;
     }
 
     public ILocalTranslationWorker? Worker => workerClient;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        IReadOnlyList<VoiceProfile> profiles = await voiceProfileStore
+            .LoadProfilesAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await DispatchAsync(() => viewModel.ApplyVoiceProfiles(profiles))
+            .ConfigureAwait(false);
         await RefreshDevicesAsync().ConfigureAwait(false);
         deviceRefreshTask = RefreshDevicesPeriodicallyAsync(lifetime.Token);
 
@@ -65,8 +77,8 @@ public sealed class DesktopRuntimeService :
             if (!File.Exists(pythonExecutable))
             {
                 await ReportFailureAsync(
-                        "Python worker is not installed. Run "
-                        + "worker\\bootstrap.ps1 first.")
+                        "Обработчик Python не установлен. Сначала запустите "
+                        + "worker\\bootstrap.ps1.")
                     .ConfigureAwait(false);
                 return;
             }
@@ -118,7 +130,7 @@ public sealed class DesktopRuntimeService :
             }
 
             await ReportFailureAsync(
-                    $"Local worker could not start: {error.Message}")
+                    $"Не удалось запустить локальный обработчик: {error.Message}")
                 .ConfigureAwait(false);
         }
     }
@@ -166,6 +178,7 @@ public sealed class DesktopRuntimeService :
                 translationSession.InputLevelChanged -= OnInputLevelChanged;
                 translationSession.OutputLevelChanged -= OnOutputLevelChanged;
                 translationSession.ActivityChanged -= OnActivityChanged;
+                translationSession.ProgressChanged -= OnProgressChanged;
                 await translationSession.DisposeAsync().ConfigureAwait(false);
                 translationSession = null;
             }
@@ -185,7 +198,7 @@ public sealed class DesktopRuntimeService :
         }
 
         await ReportFailureAsync(
-                $"Local worker failure: {failure}. Restart is required.")
+                $"{DescribeSessionFailure(failure)} Требуется перезапуск.")
             .ConfigureAwait(false);
     }
 
@@ -194,6 +207,8 @@ public sealed class DesktopRuntimeService :
         await StopAsync(CancellationToken.None).ConfigureAwait(false);
         viewModel.StartRequested -= OnStartRequested;
         viewModel.StopRequested -= OnStopRequested;
+        viewModel.RenameVoiceProfileRequested -= OnRenameVoiceProfileRequested;
+        viewModel.DeleteVoiceProfileRequested -= OnDeleteVoiceProfileRequested;
         devices.Dispose();
         sessionGate.Dispose();
         lifetime.Dispose();
@@ -238,8 +253,8 @@ public sealed class DesktopRuntimeService :
         {
             await StopTranslationSessionAsync().ConfigureAwait(false);
             await ReportFailureAsync(
-                    "The selected audio device was disconnected. "
-                    + "Select an available device and start a new session.")
+                    "Выбранное аудиоустройство отключено. "
+                    + "Выберите доступное устройство и создайте новую сессию.")
                 .ConfigureAwait(false);
         }
     }
@@ -255,11 +270,11 @@ public sealed class DesktopRuntimeService :
         {
             await StartTranslationSessionAsync().ConfigureAwait(false);
         }
-        catch (Exception error)
+        catch (Exception)
         {
             await StopTranslationSessionAsync().ConfigureAwait(false);
             await ReportFailureAsync(
-                    $"Translation session could not start: {error.Message}")
+                    "Не удалось запустить сессию перевода. Проверьте выбранные устройства.")
                 .ConfigureAwait(false);
         }
     }
@@ -270,11 +285,63 @@ public sealed class DesktopRuntimeService :
         {
             await StopTranslationSessionAsync().ConfigureAwait(false);
         }
-        catch (Exception error)
+        catch (Exception)
         {
             await ReportFailureAsync(
-                    $"Translation session could not stop cleanly: "
-                    + error.Message)
+                    "Не удалось корректно остановить сессию перевода.")
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async void OnRenameVoiceProfileRequested(
+        VoiceProfile profile,
+        string name)
+    {
+        try
+        {
+            VoiceProfile renamed = await voiceProfileStore
+                .RenameAsync(profile.Id, name, lifetime.Token)
+                .ConfigureAwait(false);
+            IReadOnlyList<VoiceProfile> profiles = await voiceProfileStore
+                .LoadProfilesAsync(lifetime.Token)
+                .ConfigureAwait(false);
+            await DispatchAsync(
+                    () => viewModel.ApplyVoiceProfiles(profiles, renamed.Id))
+                .ConfigureAwait(false);
+        }
+        catch (Exception error)
+            when (!lifetime.IsCancellationRequested)
+        {
+            await DispatchAsync(() => viewModel.ReportActivity(
+                    $"Не удалось переименовать профиль: {error.Message}"))
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async void OnDeleteVoiceProfileRequested(VoiceProfile profile)
+    {
+        try
+        {
+            await voiceProfileStore
+                .DeleteAsync(profile.Id, lifetime.Token)
+                .ConfigureAwait(false);
+            IReadOnlyList<VoiceProfile> profiles = await voiceProfileStore
+                .LoadProfilesAsync(lifetime.Token)
+                .ConfigureAwait(false);
+            Guid? nextProfileId = profiles.Count > 0
+                ? profiles[0].Id
+                : null;
+            await DispatchAsync(
+                    () => viewModel.ApplyVoiceProfiles(
+                        profiles,
+                        nextProfileId))
+                .ConfigureAwait(false);
+        }
+        catch (Exception error)
+            when (!lifetime.IsCancellationRequested)
+        {
+            await DispatchAsync(() => viewModel.ReportActivity(
+                    $"Не удалось удалить профиль: {error.Message}"))
                 .ConfigureAwait(false);
         }
     }
@@ -291,38 +358,79 @@ public sealed class DesktopRuntimeService :
 
             LocalWorkerClient worker = workerClient
                 ?? throw new InvalidOperationException(
-                    "The local worker is not ready.");
+                    "Локальный обработчик не готов.");
             AudioDeviceInfo microphone = viewModel.SelectedMicrophone
                 ?? throw new InvalidOperationException(
-                    "No microphone is selected.");
+                    "Микрофон не выбран.");
             AudioDeviceInfo? physicalOutput = viewModel.SelectedPhysicalOutput;
             AudioDeviceInfo? virtualOutput = viewModel.SelectedVirtualOutput;
             OutputMode outputMode = viewModel.SelectedOutputMode;
             string targetLanguage =
                 viewModel.SelectedTargetLanguage?.Code
                 ?? throw new InvalidOperationException(
-                    "No target language is selected.");
+                    "Язык перевода не выбран.");
 
-            sessionDeviceEnumerator = new MMDeviceEnumerator();
-            sessionCaptureDevice =
-                sessionDeviceEnumerator.GetDevice(microphone.Id);
-            var capture = new WasapiMicrophoneCapture(
-                sessionCaptureDevice);
-            IAudioPlaybackSink output = CreatePlaybackSink(
-                sessionDeviceEnumerator,
-                physicalOutput,
-                virtualOutput,
-                outputMode);
-            var session = new DesktopTranslationSession(
-                worker,
-                capture,
-                output,
-                targetLanguage,
-                this);
+            VoiceProfile? selectedProfile = viewModel.SelectedVoiceProfile;
+            string newProfileName = viewModel.VoiceProfileName.Trim();
+            byte[]? referenceWav = selectedProfile is null
+                ? null
+                : await voiceProfileStore
+                    .LoadReferenceAsync(selectedProfile.Id, lifetime.Token)
+                    .ConfigureAwait(false);
+            Func<byte[], CancellationToken, Task>? referenceCaptured =
+                selectedProfile is null
+                    ? async (wave, token) =>
+                    {
+                        VoiceProfile created = await voiceProfileStore
+                            .CreateAsync(newProfileName, wave, token)
+                            .ConfigureAwait(false);
+                        IReadOnlyList<VoiceProfile> profiles =
+                            await voiceProfileStore
+                                .LoadProfilesAsync(token)
+                                .ConfigureAwait(false);
+                        await DispatchAsync(
+                                () => viewModel.ApplyVoiceProfiles(
+                                    profiles,
+                                    created.Id))
+                            .ConfigureAwait(false);
+                    }
+            : null;
+
+            DesktopTranslationSession session;
+            try
+            {
+                sessionDeviceEnumerator = new MMDeviceEnumerator();
+                sessionCaptureDevice =
+                    sessionDeviceEnumerator.GetDevice(microphone.Id);
+                var capture = new WasapiMicrophoneCapture(
+                    sessionCaptureDevice);
+                IAudioPlaybackSink output = CreatePlaybackSink(
+                    sessionDeviceEnumerator,
+                    physicalOutput,
+                    virtualOutput,
+                    outputMode);
+                session = new DesktopTranslationSession(
+                    worker,
+                    capture,
+                    output,
+                    targetLanguage,
+                    this,
+                    referenceWav,
+                    referenceCaptured);
+                referenceWav = null;
+            }
+            finally
+            {
+                if (referenceWav is not null)
+                {
+                    CryptographicOperations.ZeroMemory(referenceWav);
+                }
+            }
             session.Failed += OnTranslationSessionFailed;
             session.InputLevelChanged += OnInputLevelChanged;
             session.OutputLevelChanged += OnOutputLevelChanged;
             session.ActivityChanged += OnActivityChanged;
+            session.ProgressChanged += OnProgressChanged;
             translationSession = session;
             session.Start();
         }
@@ -343,6 +451,7 @@ public sealed class DesktopRuntimeService :
                 translationSession.InputLevelChanged -= OnInputLevelChanged;
                 translationSession.OutputLevelChanged -= OnOutputLevelChanged;
                 translationSession.ActivityChanged -= OnActivityChanged;
+                translationSession.ProgressChanged -= OnProgressChanged;
                 await translationSession.DisposeAsync().ConfigureAwait(false);
                 translationSession = null;
             }
@@ -366,7 +475,7 @@ public sealed class DesktopRuntimeService :
     {
         await StopTranslationSessionAsync().ConfigureAwait(false);
         await ReportFailureAsync(
-                $"Audio translation failed: {error.Message}")
+                DescribeTranslationError(error))
             .ConfigureAwait(false);
     }
 
@@ -388,6 +497,13 @@ public sealed class DesktopRuntimeService :
             .ConfigureAwait(false);
     }
 
+    private async void OnProgressChanged(int percent, string label)
+    {
+        await DispatchAsync(
+                () => viewModel.ReportTranslationProgress(percent, label))
+            .ConfigureAwait(false);
+    }
+
     private IAudioPlaybackSink CreatePlaybackSink(
         MMDeviceEnumerator deviceEnumerator,
         AudioDeviceInfo? physicalOutput,
@@ -400,7 +516,7 @@ public sealed class DesktopRuntimeService :
             sessionOutputDevice = deviceEnumerator.GetDevice(
                 physicalOutput?.Id
                 ?? throw new InvalidOperationException(
-                    "No physical output is selected."));
+                    "Физическое устройство вывода не выбрано."));
             return new WasapiPlaybackSink(sessionOutputDevice, waveFormat);
         }
 
@@ -409,7 +525,7 @@ public sealed class DesktopRuntimeService :
             sessionVirtualOutputDevice = deviceEnumerator.GetDevice(
                 virtualOutput?.Id
                 ?? throw new InvalidOperationException(
-                    "No virtual output is selected."));
+                    "Виртуальное устройство вывода не выбрано."));
             return new WasapiPlaybackSink(
                 sessionVirtualOutputDevice,
                 waveFormat);
@@ -418,11 +534,11 @@ public sealed class DesktopRuntimeService :
         sessionOutputDevice = deviceEnumerator.GetDevice(
             physicalOutput?.Id
             ?? throw new InvalidOperationException(
-                "No physical output is selected."));
+                "Физическое устройство вывода не выбрано."));
         sessionVirtualOutputDevice = deviceEnumerator.GetDevice(
             virtualOutput?.Id
             ?? throw new InvalidOperationException(
-                "No virtual output is selected."));
+                "Виртуальное устройство вывода не выбрано."));
         return new AudioOutputRoutingSink(
             new WasapiPlaybackSink(sessionOutputDevice, waveFormat),
             new WasapiPlaybackSink(sessionVirtualOutputDevice, waveFormat),
@@ -459,6 +575,27 @@ public sealed class DesktopRuntimeService :
         }
     }
 
+    private static string DescribeTranslationError(Exception error)
+    {
+        return error is HttpRequestException { StatusCode: not null } request
+            ? $"Не удалось обработать фразу. Код HTTP: {(int)request.StatusCode.Value}."
+            : "Не удалось обработать фразу. Создайте новую сессию и повторите попытку.";
+    }
+
+    private static string DescribeSessionFailure(SessionFailure failure)
+    {
+        return failure switch
+        {
+            SessionFailure.GpuMemoryExhausted =>
+                "Недостаточно видеопамяти для перевода.",
+            SessionFailure.WorkerExited =>
+                "Локальный обработчик неожиданно завершился.",
+            SessionFailure.HeartbeatTimedOut =>
+                "Локальный обработчик перестал отвечать.",
+            _ => "Произошёл сбой локального обработчика.",
+        };
+    }
+
     private static string FindWorkspaceRoot(string startDirectory)
     {
         var directory = new DirectoryInfo(startDirectory);
@@ -475,6 +612,6 @@ public sealed class DesktopRuntimeService :
         }
 
         throw new DirectoryNotFoundException(
-            "Could not locate the packaged Python worker.");
+            "Не удалось найти установленный обработчик Python.");
     }
 }

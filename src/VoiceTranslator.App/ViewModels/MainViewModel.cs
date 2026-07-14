@@ -5,6 +5,7 @@ using VoiceTranslator.Domain.Audio;
 using VoiceTranslator.Domain.Languages;
 using VoiceTranslator.Domain.Sessions;
 using VoiceTranslator.Application.Ports;
+using VoiceTranslator.App.Services;
 using VoiceTranslator.Infrastructure.Audio.Devices;
 
 namespace VoiceTranslator.App.ViewModels;
@@ -14,6 +15,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private readonly RelayCommand startCommand;
     private readonly RelayCommand stopCommand;
     private readonly RelayCommand newSessionCommand;
+    private readonly RelayCommand newVoiceProfileCommand;
+    private readonly RelayCommand renameVoiceProfileCommand;
+    private readonly RelayCommand deleteVoiceProfileCommand;
     private TargetLanguage? selectedTargetLanguage;
     private AudioDeviceInfo? selectedMicrophone;
     private AudioDeviceInfo? selectedPhysicalOutput;
@@ -24,14 +28,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private IReadOnlyList<AudioDeviceInfo> microphones = [];
     private IReadOnlyList<AudioDeviceInfo> physicalOutputs = [];
     private IReadOnlyList<AudioDeviceInfo> virtualOutputs = [];
-    private bool speakerConsentAccepted;
+    private VoiceProfile[] voiceProfiles = [];
+    private VoiceProfile? selectedVoiceProfile;
+    private string voiceProfileName = string.Empty;
     private bool outputChannelTestPassed;
     private bool isModelPreflightPassed;
     private bool isWorkerReady;
     private SessionState state = SessionState.Draft;
-    private string performanceProfile = "Unavailable";
-    private string modelInventorySummary = "Model inventory unavailable";
-    private string activityMessage = "Waiting for setup.";
+    private string performanceProfile = "unavailable";
+    private string modelInventorySummary = "Сведения о моделях недоступны.";
+    private string activityMessage = "Ожидание настройки.";
+    private int translationProgressPercent;
+    private string translationProgressLabel = "Ожидание";
     private double inputLevelPercent;
     private double outputLevelPercent;
     private string? outputWarning;
@@ -44,6 +52,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         newSessionCommand = new RelayCommand(
             BeginNewSession,
             () => State == SessionState.Stopped);
+        newVoiceProfileCommand = new RelayCommand(
+            BeginNewVoiceProfile,
+            () => State != SessionState.Listening);
+        renameVoiceProfileCommand = new RelayCommand(
+            RenameVoiceProfile,
+            CanRenameVoiceProfile);
+        deleteVoiceProfileCommand = new RelayCommand(
+            DeleteVoiceProfile,
+            () => State != SessionState.Listening
+                && SelectedVoiceProfile is not null);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -52,6 +70,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public event EventHandler? StopRequested;
 
+    public event Action<VoiceProfile, string>? RenameVoiceProfileRequested;
+
+    public event Action<VoiceProfile>? DeleteVoiceProfileRequested;
+
     public IReadOnlyList<TargetLanguage> TargetLanguages => targetLanguages;
 
     public IReadOnlyList<AudioDeviceInfo> Microphones => microphones;
@@ -59,6 +81,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public IReadOnlyList<AudioDeviceInfo> PhysicalOutputs => physicalOutputs;
 
     public IReadOnlyList<AudioDeviceInfo> VirtualOutputs => virtualOutputs;
+
+    public IReadOnlyList<VoiceProfile> VoiceProfiles => voiceProfiles;
 
     public IReadOnlyList<OutputMode> OutputModes { get; } =
     [
@@ -97,10 +121,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set => SetPrerequisite(ref selectedOutputMode, value);
     }
 
-    public bool SpeakerConsentAccepted
+    public VoiceProfile? SelectedVoiceProfile
     {
-        get => speakerConsentAccepted;
-        set => SetPrerequisite(ref speakerConsentAccepted, value);
+        get => selectedVoiceProfile;
+        set
+        {
+            if (selectedVoiceProfile == value)
+            {
+                return;
+            }
+
+            selectedVoiceProfile = value;
+            voiceProfileName = value?.Name ?? string.Empty;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(VoiceProfileName));
+            UpdateReadinessAndCommands();
+        }
+    }
+
+    public string VoiceProfileName
+    {
+        get => voiceProfileName;
+        set
+        {
+            value ??= string.Empty;
+            if (voiceProfileName == value)
+            {
+                return;
+            }
+
+            voiceProfileName = value;
+            OnPropertyChanged();
+            UpdateReadinessAndCommands();
+        }
     }
 
     public bool OutputChannelTestPassed
@@ -152,6 +205,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
             performanceProfile = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(PerformanceProfileDisplay));
         }
     }
 
@@ -202,6 +256,38 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public int TranslationProgressPercent
+    {
+        get => translationProgressPercent;
+        private set
+        {
+            int normalized = Math.Clamp(value, 0, 100);
+            if (translationProgressPercent == normalized)
+            {
+                return;
+            }
+
+            translationProgressPercent = normalized;
+            OnPropertyChanged();
+        }
+    }
+
+    public string TranslationProgressLabel
+    {
+        get => translationProgressLabel;
+        private set
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            if (translationProgressLabel == value)
+            {
+                return;
+            }
+
+            translationProgressLabel = value;
+            OnPropertyChanged();
+        }
+    }
+
     public double InputLevelPercent
     {
         get => inputLevelPercent;
@@ -234,8 +320,16 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public string ModelPreflightState =>
-        IsModelPreflightPassed ? "Models verified" : "Models require preflight";
+    public string ModelPreflightState => IsModelPreflightPassed
+        ? "Модели проверены"
+        : "Требуется проверка моделей";
+
+    public string PerformanceProfileDisplay => PerformanceProfile switch
+    {
+        "balanced" => "Сбалансированный",
+        "low-memory" => "Экономия видеопамяти",
+        _ => "Недоступен",
+    };
 
     public string StatusMessage
     {
@@ -243,37 +337,37 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (State == SessionState.Faulted)
             {
-                return failureMessage ?? "The local worker failed.";
+                return failureMessage ?? "Локальный обработчик остановлен.";
             }
 
             if (State == SessionState.Listening)
             {
-                return "Listening for Russian speech.";
+                return "Слушаю русскую речь.";
             }
 
             if (State == SessionState.Stopped)
             {
-                return "Translation stopped. Start a new session to continue.";
+                return "Перевод остановлен. Создайте новую сессию, чтобы продолжить.";
             }
 
             if (!IsWorkerReady && !IsModelPreflightPassed)
             {
-                return "Local worker and required models are unavailable.";
+                return "Локальный обработчик и необходимые модели недоступны.";
             }
 
             if (!IsWorkerReady)
             {
-                return "Local worker is unavailable.";
+                return "Локальный обработчик недоступен.";
             }
 
             if (!IsModelPreflightPassed)
             {
-                return "Required models have not passed preflight.";
+                return "Необходимые модели не прошли проверку.";
             }
 
             if (SelectedMicrophone is null)
             {
-                return "Select a microphone.";
+                return "Выберите микрофон.";
             }
 
             if (
@@ -281,7 +375,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 && SelectedPhysicalOutput is null
             )
             {
-                return "Select a physical output device.";
+                return "Выберите устройство физического вывода.";
             }
 
             if (
@@ -289,7 +383,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 && SelectedVirtualOutput is null
             )
             {
-                return "Select a virtual cable output device.";
+                return "Выберите устройство виртуального кабеля.";
             }
 
             if (
@@ -297,20 +391,21 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 && !OutputChannelTestPassed
             )
             {
-                return "Run the output channel test before using virtual output.";
+                return "Проверьте канал вывода перед использованием виртуального кабеля.";
             }
 
             if (SelectedTargetLanguage is null)
             {
-                return "Select a target language.";
+                return "Выберите язык перевода.";
             }
 
-            if (!SpeakerConsentAccepted)
+            if (SelectedVoiceProfile is null
+                && string.IsNullOrWhiteSpace(VoiceProfileName))
             {
-                return "Accept speaker timbre consent for this session.";
+                return "Выберите голосовой профиль или введите имя нового.";
             }
 
-            return "Ready to start.";
+            return "Готово к запуску.";
         }
     }
 
@@ -319,6 +414,29 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public ICommand StopCommand => stopCommand;
 
     public ICommand NewSessionCommand => newSessionCommand;
+
+    public ICommand NewVoiceProfileCommand => newVoiceProfileCommand;
+
+    public ICommand RenameVoiceProfileCommand => renameVoiceProfileCommand;
+
+    public ICommand DeleteVoiceProfileCommand => deleteVoiceProfileCommand;
+
+    public void ApplyVoiceProfiles(
+        IReadOnlyList<VoiceProfile> profiles,
+        Guid? selectedProfileId = null)
+    {
+        ArgumentNullException.ThrowIfNull(profiles);
+        Guid? currentId = selectedProfileId ?? SelectedVoiceProfile?.Id;
+        voiceProfiles = profiles.ToArray();
+        selectedVoiceProfile = currentId is Guid id
+            ? voiceProfiles.FirstOrDefault(profile => profile.Id == id)
+            : voiceProfiles.Length > 0 ? voiceProfiles[0] : null;
+        voiceProfileName = selectedVoiceProfile?.Name ?? string.Empty;
+        OnPropertyChanged(nameof(VoiceProfiles));
+        OnPropertyChanged(nameof(SelectedVoiceProfile));
+        OnPropertyChanged(nameof(VoiceProfileName));
+        UpdateReadinessAndCommands();
+    }
 
     public void UpdateDevices(
         IReadOnlyList<AudioDeviceInfo> captureDevices,
@@ -371,7 +489,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ArgumentNullException.ThrowIfNull(report);
 
         failureMessage = null;
-        ActivityMessage = "Worker ready. Select devices and press Start.";
+        ActivityMessage = "Обработчик готов. Выберите устройства и нажмите «Запустить».";
         var availableCodes = report.AvailableLanguages.ToHashSet(
             StringComparer.Ordinal);
         targetLanguages = TargetLanguage.All
@@ -388,8 +506,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IsWorkerReady = true;
         PerformanceProfile = report.PerformanceProfile;
         ModelInventorySummary = report.MissingModels.Count == 0
-            ? $"All models verified. {targetLanguages.Count} languages available."
-            : "Missing models: " + string.Join(", ", report.MissingModels);
+            ? $"Все модели проверены. Доступно языков: {targetLanguages.Count}."
+            : "Отсутствуют модели: " + string.Join(", ", report.MissingModels);
         IsModelPreflightPassed = report.Ready;
     }
 
@@ -406,7 +524,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         failureMessage = message;
         IsWorkerReady = false;
         State = SessionState.Faulted;
-        ActivityMessage = "Worker failed.";
+        ActivityMessage = "Обработчик остановлен.";
+        ReportTranslationProgress(0, "Ошибка");
     }
 
     public void ReportInputLevel(double percent) =>
@@ -417,6 +536,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public void ReportActivity(string message) =>
         ActivityMessage = message;
+
+    public void ReportTranslationProgress(int percent, string label)
+    {
+        TranslationProgressPercent = percent;
+        TranslationProgressLabel = label;
+    }
 
     private bool CanStart()
     {
@@ -436,7 +561,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 || OutputChannelTestPassed
             )
             && SelectedTargetLanguage is not null
-            && SpeakerConsentAccepted
+            && (
+                SelectedVoiceProfile is not null
+                || !string.IsNullOrWhiteSpace(VoiceProfileName)
+            )
             && IsWorkerReady;
     }
 
@@ -448,7 +576,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
         }
 
         State = SessionState.Listening;
-        ActivityMessage = "Listening. First completed phrase becomes the voice reference.";
+        ActivityMessage = SelectedVoiceProfile is null
+            ? "Слушаю образец для нового голосового профиля."
+            : $"Профиль «{SelectedVoiceProfile.Name}» готов. Слушаю речь для перевода.";
+        ReportTranslationProgress(0, "Ожидание речи");
         StartRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -459,11 +590,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        SpeakerConsentAccepted = false;
         State = SessionState.Stopped;
         InputLevelPercent = 0;
         OutputLevelPercent = 0;
-        ActivityMessage = "Stopped.";
+        ActivityMessage = "Остановлено.";
+        ReportTranslationProgress(0, "Остановлено");
         StopRequested?.Invoke(this, EventArgs.Empty);
     }
 
@@ -474,11 +605,58 @@ public sealed class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        SpeakerConsentAccepted = false;
         State = SessionState.Draft;
         InputLevelPercent = 0;
         OutputLevelPercent = 0;
-        ActivityMessage = "Waiting for setup.";
+        ActivityMessage = "Ожидание настройки.";
+        ReportTranslationProgress(0, "Ожидание");
+        UpdateReadinessAndCommands();
+    }
+
+    private void BeginNewVoiceProfile()
+    {
+        if (State == SessionState.Listening)
+        {
+            return;
+        }
+
+        SelectedVoiceProfile = null;
+        VoiceProfileName = string.Empty;
+        ActivityMessage = "Введите имя нового голосового профиля.";
+    }
+
+    private bool CanRenameVoiceProfile()
+    {
+        return State != SessionState.Listening
+            && SelectedVoiceProfile is not null
+            && !string.IsNullOrWhiteSpace(VoiceProfileName)
+            && !string.Equals(
+                SelectedVoiceProfile.Name,
+                VoiceProfileName.Trim(),
+                StringComparison.Ordinal);
+    }
+
+    private void RenameVoiceProfile()
+    {
+        if (!CanRenameVoiceProfile())
+        {
+            return;
+        }
+
+        RenameVoiceProfileRequested?.Invoke(
+            SelectedVoiceProfile!,
+            VoiceProfileName.Trim());
+    }
+
+    private void DeleteVoiceProfile()
+    {
+        if (State == SessionState.Listening
+            || SelectedVoiceProfile is null)
+        {
+            return;
+        }
+
+        DeleteVoiceProfileRequested?.Invoke(SelectedVoiceProfile);
     }
 
     private void SetPrerequisite<T>(
@@ -498,6 +676,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             OnPropertyChanged(nameof(ModelPreflightState));
         }
+
+        UpdateReadinessAndCommands();
+    }
+
+    private void UpdateReadinessAndCommands()
+    {
 
         if (State is SessionState.Draft or SessionState.Ready)
         {
@@ -532,7 +716,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
                 || OutputChannelTestPassed
             )
             && SelectedTargetLanguage is not null
-            && SpeakerConsentAccepted
+            && (
+                SelectedVoiceProfile is not null
+                || !string.IsNullOrWhiteSpace(VoiceProfileName)
+            )
             && IsWorkerReady;
     }
 
@@ -541,6 +728,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         startCommand.RaiseCanExecuteChanged();
         stopCommand.RaiseCanExecuteChanged();
         newSessionCommand.RaiseCanExecuteChanged();
+        newVoiceProfileCommand.RaiseCanExecuteChanged();
+        renameVoiceProfileCommand.RaiseCanExecuteChanged();
+        deleteVoiceProfileCommand.RaiseCanExecuteChanged();
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

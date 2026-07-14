@@ -19,6 +19,7 @@ public partial class App : System.Windows.Application
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(e.Args);
         builder.Logging.ClearProviders();
         builder.Services.AddSingleton<MainViewModel>();
+        builder.Services.AddSingleton<VoiceProfileStore>();
         builder.Services.AddSingleton<MainWindow>();
         builder.Services.AddSingleton<DesktopRuntimeService>();
         builder.Services.AddHostedService(

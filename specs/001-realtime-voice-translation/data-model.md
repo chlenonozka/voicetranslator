@@ -9,7 +9,7 @@
 | `InputDeviceId` | string | Active WASAPI capture endpoint |
 | `OutputMode` | enum | Physical, VirtualCable, Both |
 | `PerformanceProfile` | enum | Balanced or LowMemory |
-| `SpeakerConsentAt` | timestamp | Required before reference capture |
+| `VoiceProfileId` | UUID | Existing profile or profile created from the first phrase |
 | `WorkerProcessId` | integer | Must match healthy launched worker |
 | `State` | SessionState | Controlled by state machine |
 
@@ -58,6 +58,17 @@ Ephemeral worker-memory object.
 | `Conditioning` | tensor/object | Memory only |
 | `CreatedAt` | timestamp | Cleared on stop/disconnect |
 
+## VoiceProfile
+
+User-managed host-side object shared by all target languages.
+
+| Field | Type | Rules |
+|---|---|---|
+| `ProfileId` | UUID | Local identifier |
+| `Name` | string | Unique, user-editable, at most 60 characters |
+| `CreatedAt` | timestamp | Metadata only |
+| `EncryptedReferenceWav` | byte buffer | DPAPI CurrentUser, never plaintext on disk |
+
 ## SpeechSegment
 
 Ephemeral worker-memory object containing Russian PCM, recognition confidence,
@@ -71,6 +82,7 @@ output sinks finish or the request is canceled.
 ## Invariants
 
 - No `SpeakerSession`, `SpeechSegment`, or `TranslatedUtterance` is serialized.
+- Only `VoiceProfile.EncryptedReferenceWav` may persist speech data.
 - Worker disconnect clears every active speaker session.
 - Model downloads cannot occur during an active translation session.
 - A target language is selectable only when its capability row is available.

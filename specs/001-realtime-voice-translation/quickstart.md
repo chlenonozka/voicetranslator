@@ -32,12 +32,15 @@ uv run --project worker pytest worker/tests -q
 
 1. Run preflight and confirm RTX 3070, selected profile, hashes and 16 language
    probes.
-2. Record a short current-speaker reference after consent.
+2. Create and name a voice profile from a short current-speaker phrase, or
+   select an existing encrypted local profile.
 3. Translate ten approved Russian phrases to English.
 4. Repeat a validation phrase for every other target language.
 5. Test physical, virtual and dual outputs.
 6. Force worker termination and CUDA OOM.
-7. Verify safe state within two seconds and no session artifacts on disk.
+7. Verify safe state within two seconds, no ordinary session artifacts on disk,
+   and only DPAPI-encrypted data in the voice-profile directory.
 
 Expected: p90 output begins within five seconds; only preflight-passing
-languages are selectable; no speech content persists.
+languages are selectable; no speech content persists outside explicitly
+created encrypted voice profiles.
