@@ -71,8 +71,6 @@ START Voice Translator.cmd
 
 ---
 
-## English documentation
-
 Windows 11 desktop application for local phrase-by-phrase translation of
 Russian speech into 16 target languages with reusable local voice profiles.
 
