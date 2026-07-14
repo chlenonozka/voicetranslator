@@ -24,6 +24,7 @@ public sealed class DesktopRuntimeServiceTests
         var service = new DesktopRuntimeService(viewModel, store);
         var session = new FakeSessionHost();
         service.SessionFactory = new FakeSessionFactory(session);
+        service.DispatcherFunc = action => { action(); return Task.CompletedTask; };
 
         // Act
         var cleanupTask = service.OnSessionFailureAsync(SessionFailure.GpuMemoryExhausted, CancellationToken.None);
@@ -44,6 +45,7 @@ public sealed class DesktopRuntimeServiceTests
         var service = new DesktopRuntimeService(viewModel, store);
         var session = new FakeSessionHost();
         service.SessionFactory = new FakeSessionFactory(session);
+        service.DispatcherFunc = action => { action(); return Task.CompletedTask; };
 
         // Force the session to exist
         await session.StartAsync(service);
@@ -67,6 +69,7 @@ public sealed class DesktopRuntimeServiceTests
         var service = new DesktopRuntimeService(viewModel, store);
         var session = new FakeSessionHost();
         service.SessionFactory = new FakeSessionFactory(session);
+        service.DispatcherFunc = action => { action(); return Task.CompletedTask; };
 
         await session.StartAsync(service);
 
@@ -87,6 +90,7 @@ public sealed class DesktopRuntimeServiceTests
         var service = new DesktopRuntimeService(viewModel, store);
         var session = new FakeSessionHost { ThrowOnDispose = true };
         service.SessionFactory = new FakeSessionFactory(session);
+        service.DispatcherFunc = action => { action(); return Task.CompletedTask; };
 
         await session.StartAsync(service);
 
