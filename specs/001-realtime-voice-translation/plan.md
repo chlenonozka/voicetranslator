@@ -32,7 +32,7 @@ Windows E2E, RTX 3070 latency/VRAM benchmarks
 failure → safe state ≤2 секунд
 
 **Constraints**: русский вход; 16 целевых языков; личное некоммерческое
-использование; offline inference; balanced и low-memory profiles; no generic
+использование; offline inference; low-memory, balanced и performance profiles; no generic
 voice fallback
 
 ## Constitution Check
@@ -97,16 +97,23 @@ tests/
 
 ## Model and memory decisions
 
-- faster-whisper starts with `medium`, CUDA `int8`; low-memory falls back to
-  `small`, CUDA `int8`.
-- NLLB is converted to CTranslate2 and uses CPU `int8` by default. The Windows
+- faster-whisper uses `small`, CUDA `int8` in low-memory; `medium`, CUDA `int8`
+  in balanced; and `medium`, CUDA `float16`, beam size 1 in performance.
+- NLLB is converted to CTranslate2 and uses CPU `int8` by default. Performance
+  moves NLLB to CUDA `float16` and keeps it resident between phrases. The Windows
   worker uses the PyTorch CUDA 12.8 runtime so faster-whisper/CTranslate2 and
   XTTS share one compatible CUDA DLL family; NLLB is unloaded outside
   translation.
 - XTTS-v2 is loaded for speaker conditioning/synthesis and released when the
   session ends.
+- WPF передаёт выбранный пользователем `low-memory`, `balanced` или
+  `performance` в каждый запрос перевода. В `low-memory` worker не выполняет
+  предварительную попытку в более тяжёлом профиле.
+- Voice reference записывается отдельным управляемым захватом длительностью
+  3–15 секунд и шифруется сразу после завершения записи.
 - GPU manager uses `torch.cuda.mem_get_info`, `memory_reserved`,
-  `empty_cache`, CTranslate2 `unload_model`, and one low-memory retry.
+  `empty_cache`, CTranslate2 `unload_model`, and ordered performance → balanced
+  → low-memory recovery.
 
 ## Removed architecture
 

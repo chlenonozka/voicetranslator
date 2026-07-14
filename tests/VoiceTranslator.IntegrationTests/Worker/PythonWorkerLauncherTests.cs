@@ -35,7 +35,7 @@ public sealed class PythonWorkerLauncherTests
     }
 
     [Fact]
-    public async Task StopAsyncKillsProcessTreeAfterGracefulTimeout()
+    public async Task StopAsyncKillsProcessTreeBeforeWaitingForExit()
     {
         var process = new FakeWorkerProcess(42)
         {
@@ -45,7 +45,7 @@ public sealed class PythonWorkerLauncherTests
             new FakeWorkerProcessStarter(process),
             @"C:\worker\.venv\Scripts\python.exe",
             @"C:\worker",
-            TimeSpan.Zero);
+            TimeSpan.FromSeconds(10));
         var launched = await launcher.LaunchAsync(
             new WorkerLaunchRequest(
                 new Uri("http://127.0.0.1:8765"),
@@ -56,6 +56,7 @@ public sealed class PythonWorkerLauncherTests
 
         process.KilledTree.Should().BeTrue();
         process.Disposed.Should().BeTrue();
+        process.Events.Should().Equal("kill", "wait", "dispose");
     }
 
     private sealed class FakeWorkerProcessStarter(
@@ -77,10 +78,17 @@ public sealed class PythonWorkerLauncherTests
         public bool WaitUntilCancelled { get; init; }
         public bool KilledTree { get; private set; }
         public bool Disposed { get; private set; }
+        public List<string> Events { get; } = [];
 
         public async Task WaitForExitAsync(
             CancellationToken cancellationToken)
         {
+            Events.Add("wait");
+            if (HasExited)
+            {
+                return;
+            }
+
             if (WaitUntilCancelled)
             {
                 await new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task.WaitAsync(cancellationToken);
@@ -91,10 +99,15 @@ public sealed class PythonWorkerLauncherTests
 
         public void KillTree()
         {
+            Events.Add("kill");
             KilledTree = true;
             HasExited = true;
         }
 
-        public void Dispose() => Disposed = true;
+        public void Dispose()
+        {
+            Events.Add("dispose");
+            Disposed = true;
+        }
     }
 }

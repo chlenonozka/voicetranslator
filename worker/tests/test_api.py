@@ -25,7 +25,11 @@ def test_speaker_session_translate_delete_lifecycle() -> None:
         create_response = client.post(
             "/v1/speaker-sessions",
             content=b"reference-wav",
-            headers={**headers, "Content-Type": "audio/wav"},
+            headers={
+                **headers,
+                "Content-Type": "audio/wav",
+                "X-Performance-Profile": "performance",
+            },
         )
 
         assert create_response.status_code == 201
@@ -36,6 +40,7 @@ def test_speaker_session_translate_delete_lifecycle() -> None:
             data={
                 "sessionId": session_id,
                 "targetLanguage": "en",
+                "performanceProfile": "low-memory",
             },
             files={"audio": ("phrase.wav", b"phrase-wav", "audio/wav")},
             headers=headers,
@@ -44,7 +49,7 @@ def test_speaker_session_translate_delete_lifecycle() -> None:
         assert translation_response.status_code == 200
         assert translation_response.content == b"wav"
         assert translation_response.headers["content-type"] == "audio/wav"
-        assert translation_response.headers["x-performance-profile"] == "balanced"
+        assert translation_response.headers["x-performance-profile"] == "low-memory"
         assert translation_response.headers["x-request-id"]
 
         delete_response = client.delete(

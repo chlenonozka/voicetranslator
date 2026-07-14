@@ -59,7 +59,7 @@
 - [x] T040 [US1] Implement worker process launch, health, restart and token creation in `src/VoiceTranslator.Infrastructure.LocalWorker/WorkerProcessManager.cs`
 - [x] T041 [US1] Implement WASAPI capture/playback and limiter in `src/VoiceTranslator.Infrastructure.Audio/`
 - [x] T042 [US1] Implement bounded phrase orchestration in `src/VoiceTranslator.Application/Orchestration/TranslationPipeline.cs`
-- [x] T043 [US1] Implement WPF voice-profile, target language, status and start/stop flow in `src/VoiceTranslator.App/`
+- [x] T043 [US1] Implement WPF voice-profile recording, performance selection, target language, status and start/stop flow in `src/VoiceTranslator.App/`
 - [x] T044 [US1] Add RTX 3070 physical-output acceptance test in `tests/VoiceTranslator.WindowsE2ETests/PhysicalOutputTests.cs`
 
 ## Phase 6: User Story 2 — Languages, models and routes
@@ -78,7 +78,7 @@
 - [x] T053 [P] [US3] Write CUDA OOM retry and cleanup tests in `worker/tests/test_recovery.py`
 - [x] T054 [P] [US3] Write no-speech-persistence tests in `worker/tests/test_privacy.py` and `tests/VoiceTranslator.IntegrationTests/Privacy/`
 - [x] T055 [US3] Implement worker failure coordinator and two-second shutdown in `src/VoiceTranslator.Application/Orchestration/SessionFailureCoordinator.cs`
-- [x] T056 [US3] Implement OOM cleanup and one low-memory retry in `worker/voice_translator_worker/pipeline/recovery.py`
+- [x] T056 [US3] Implement OOM cleanup and ordered fallback to low-memory in `worker/voice_translator_worker/pipeline/recovery.py`
 - [x] T057 [US3] Implement device-loss handling and stale-buffer disposal in `src/VoiceTranslator.Infrastructure.Audio/`
 - [x] T058 [US3] Add accessible error and recovery UI in `src/VoiceTranslator.App/`
 

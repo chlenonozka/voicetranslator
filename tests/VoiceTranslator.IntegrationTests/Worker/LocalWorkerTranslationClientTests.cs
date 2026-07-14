@@ -34,6 +34,25 @@ public sealed class LocalWorkerTranslationClientTests
     }
 
     [Fact]
+    public async Task CreateSpeakerSessionUsesSelectedPerformanceProfile()
+    {
+        Guid sessionId = Guid.NewGuid();
+        var handler = new QueueHandler(JsonResponse(
+            $$"""{"sessionId":"{{sessionId:D}}"}"""));
+        using var client = CreateClient(handler);
+
+        Guid created = await client.CreateSpeakerSessionAsync(
+            [(byte)'R', (byte)'I', (byte)'F', (byte)'F'],
+            "low-memory",
+            CancellationToken.None);
+
+        created.Should().Be(sessionId);
+        handler.LastRequest!.Headers
+            .GetValues("X-Performance-Profile")
+            .Should().ContainSingle("low-memory");
+    }
+
+    [Fact]
     public async Task TranslatePhraseAsyncSendsMultipartAndReadsTimingHeaders()
     {
         var requestId = Guid.NewGuid();
@@ -55,6 +74,7 @@ public sealed class LocalWorkerTranslationClientTests
             "en",
             [9, 8, 7],
             requestId,
+            "low-memory",
             CancellationToken.None);
 
         result.AudioWav.Should().Equal(1, 2, 3);
@@ -64,6 +84,8 @@ public sealed class LocalWorkerTranslationClientTests
             .Should().ContainSingle(requestId.ToString());
         handler.LastBody.Should().Contain(sessionId.ToString());
         handler.LastBody.Should().Contain("targetLanguage");
+        handler.LastBody.Should().Contain("performanceProfile");
+        handler.LastBody.Should().Contain("low-memory");
         handler.LastBody.Should().Contain("phrase.wav");
     }
 

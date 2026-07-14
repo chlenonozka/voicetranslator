@@ -30,21 +30,39 @@ public partial class App : System.Windows.Application
         await host.StartAsync();
     }
 
-    protected override async void OnExit(ExitEventArgs e)
+    protected override void OnExit(ExitEventArgs e)
     {
-        if (host is not null)
+        try
         {
-            await host.StopAsync();
-            if (host is IAsyncDisposable asyncDisposable)
+            if (host is not null)
             {
-                await asyncDisposable.DisposeAsync();
-            }
-            else
-            {
-                host.Dispose();
+                try
+                {
+                    host.StopAsync(CancellationToken.None)
+                        .GetAwaiter()
+                        .GetResult();
+                }
+                finally
+                {
+                    if (host is IAsyncDisposable asyncDisposable)
+                    {
+                        asyncDisposable.DisposeAsync()
+                            .AsTask()
+                            .GetAwaiter()
+                            .GetResult();
+                    }
+                    else
+                    {
+                        host.Dispose();
+                    }
+
+                    host = null;
+                }
             }
         }
-
-        base.OnExit(e);
+        finally
+        {
+            base.OnExit(e);
+        }
     }
 }

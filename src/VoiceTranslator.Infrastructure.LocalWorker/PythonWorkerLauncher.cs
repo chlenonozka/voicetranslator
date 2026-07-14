@@ -83,20 +83,25 @@ public sealed class PythonWorkerLauncher : IWorkerLauncher
             {
                 if (!process.HasExited)
                 {
-                    await process
-                        .WaitForExitAsync(timeout.Token)
-                        .ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                if (!process.HasExited)
-                {
                     process.KillTree();
                 }
-
-                cancellationToken.ThrowIfCancellationRequested();
             }
+            catch (InvalidOperationException) when (process.HasExited)
+            {
+            }
+
+            try
+            {
+                await process
+                    .WaitForExitAsync(timeout.Token)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 

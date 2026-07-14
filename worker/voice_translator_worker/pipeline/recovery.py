@@ -25,15 +25,28 @@ class OomRecovery:
         self.oom_error_type = oom_error_type
         self.oom_error_resolver = oom_error_resolver or _torch_oom_error_type
 
-    def run(self, operation: Callable[[str], ResultT]) -> ResultT:
-        try:
-            return operation("balanced")
-        except Exception as error:
-            if not self.is_oom(error):
-                raise
-            self.registry.unload_all()
-            self.release_memory()
-            return operation("low-memory")
+    def run(
+        self,
+        operation: Callable[[str], ResultT],
+        initial_profile: str = "balanced",
+    ) -> ResultT:
+        profile_chains = {
+            "performance": ("performance", "balanced", "low-memory"),
+            "balanced": ("balanced", "low-memory"),
+            "low-memory": ("low-memory",),
+        }
+        profiles = profile_chains.get(initial_profile, (initial_profile,))
+        for index, profile in enumerate(profiles):
+            try:
+                return operation(profile)
+            except Exception as error:
+                is_last_attempt = index == len(profiles) - 1
+                if not self.is_oom(error) or is_last_attempt:
+                    raise
+                self.registry.unload_all()
+                self.release_memory()
+
+        raise RuntimeError("performance profile recovery exhausted")
 
     def is_oom(self, error: Exception) -> bool:
         error_type = self.oom_error_type

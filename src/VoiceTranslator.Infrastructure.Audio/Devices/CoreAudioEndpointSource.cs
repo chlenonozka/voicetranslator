@@ -46,9 +46,19 @@ public sealed class CoreAudioEndpointSource : IAudioEndpointSource
 
     private static bool IsVirtualDevice(string name)
     {
-        return name.Contains("VB-Audio", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("Virtual Cable", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("CABLE Input", StringComparison.OrdinalIgnoreCase)
-            || name.Contains("CABLE Output", StringComparison.OrdinalIgnoreCase);
+        string[] markers =
+        [
+            "VB-Audio",
+            "Virtual Cable",
+            "CABLE Input",
+            "CABLE Output",
+            "VoiceMeeter",
+            "Virtual Audio",
+            "Wave Link",
+            "SteelSeries Sonar",
+            "NVIDIA Broadcast",
+        ];
+        return markers.Any(marker =>
+            name.Contains(marker, StringComparison.OrdinalIgnoreCase));
     }
 }

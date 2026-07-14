@@ -199,16 +199,17 @@ class LazyLocalModelLoader:
         from faster_whisper import WhisperModel
         from transformers import AutoTokenizer
 
+        high_performance = profile == "performance"
         whisper = WhisperModel(
             str(model_root / f"whisper-{whisper_model}"),
             device="cuda",
-            compute_type="int8",
+            compute_type="float16" if high_performance else "int8",
         )
         nllb_path = model_root / "nllb-600m"
         nllb_engine = Translator(
             str(nllb_path),
-            device="cpu",
-            compute_type="int8",
+            device="cuda" if high_performance else "cpu",
+            compute_type="float16" if high_performance else "int8",
         )
         tokenizer = AutoTokenizer.from_pretrained(
             str(nllb_path),
@@ -225,7 +226,7 @@ class LazyLocalModelLoader:
 
         return LoadedModelSet(
             conditioner=xtts,
-            asr=RussianAsr(whisper),
+            asr=RussianAsr(whisper, beam_size=1 if high_performance else 5),
             translator=NllbTranslator(nllb_engine, tokenizer),
             xtts_engine=xtts,
             unload=unload,

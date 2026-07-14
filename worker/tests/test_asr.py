@@ -43,6 +43,15 @@ def test_asr_forces_russian_and_trims_text() -> None:
     assert model.options["task"] == "transcribe"
 
 
+def test_asr_uses_selected_beam_size() -> None:
+    model = FakeModel([FakeSegment()])
+    asr = RussianAsr(model, beam_size=1)
+
+    asr.transcribe([0.0, 0.1])
+
+    assert model.options["beam_size"] == 1
+
+
 def test_asr_decodes_worker_wave_bytes_before_transcribing() -> None:
     model = FakeModel([FakeSegment()])
     asr = RussianAsr(model)

@@ -8,8 +8,8 @@
 | `TargetLanguage` | enum | One of 16 preflight-passing targets |
 | `InputDeviceId` | string | Active WASAPI capture endpoint |
 | `OutputMode` | enum | Physical, VirtualCable, Both |
-| `PerformanceProfile` | enum | Balanced or LowMemory |
-| `VoiceProfileId` | UUID | Existing profile or profile created from the first phrase |
+| `PerformanceProfile` | enum | Economical, Balanced, or Performance |
+| `VoiceProfileId` | UUID | Existing profile created by the explicit recording flow |
 | `WorkerProcessId` | integer | Must match healthy launched worker |
 | `State` | SessionState | Controlled by state machine |
 
@@ -20,7 +20,7 @@
 | `ProcessId` | integer | Child process owned by host |
 | `Endpoint` | loopback URI | 127.0.0.1 only |
 | `LaunchToken` | secret string | Memory only, new per launch |
-| `Profile` | enum | Balanced or LowMemory |
+| `Profile` | enum | Economical, Balanced, or Performance |
 | `Health` | enum | Starting, Ready, Busy, Faulted, Stopped |
 | `LastHeartbeatAt` | timestamp | Failure after configured timeout |
 

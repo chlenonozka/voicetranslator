@@ -85,16 +85,31 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
 
     public async Task<Guid> CreateSpeakerSessionAsync(
         byte[] referenceWav,
+        CancellationToken cancellationToken) =>
+        await CreateSpeakerSessionAsync(
+                referenceWav,
+                "balanced",
+                cancellationToken)
+            .ConfigureAwait(false);
+
+    public async Task<Guid> CreateSpeakerSessionAsync(
+        byte[] referenceWav,
+        string performanceProfile,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(referenceWav);
+        ArgumentException.ThrowIfNullOrWhiteSpace(performanceProfile);
         using var content = new ByteArrayContent(referenceWav);
         content.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "v1/speaker-sessions")
+        {
+            Content = content,
+        };
+        request.Headers.Add("X-Performance-Profile", performanceProfile);
         using var response = await httpClient
-            .PostAsync(
-                "v1/speaker-sessions",
-                content,
-                cancellationToken)
+            .SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
         await EnsureWorkerSuccessAsync(response, cancellationToken)
             .ConfigureAwait(false);
@@ -125,9 +140,26 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
         string targetLanguage,
         byte[] phraseWav,
         Guid requestId,
+        CancellationToken cancellationToken) =>
+        await TranslatePhraseAsync(
+                sessionId,
+                targetLanguage,
+                phraseWav,
+                requestId,
+                "balanced",
+                cancellationToken)
+            .ConfigureAwait(false);
+
+    public async Task<PhraseTranslationResult> TranslatePhraseAsync(
+        Guid sessionId,
+        string targetLanguage,
+        byte[] phraseWav,
+        Guid requestId,
+        string performanceProfile,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(targetLanguage);
+        ArgumentException.ThrowIfNullOrWhiteSpace(performanceProfile);
         ArgumentNullException.ThrowIfNull(phraseWav);
 
         using var content = new MultipartFormDataContent();
@@ -135,6 +167,9 @@ public sealed class LocalWorkerClient : ILocalTranslationWorker
             new StringContent(sessionId.ToString("D")),
             "sessionId");
         content.Add(new StringContent(targetLanguage), "targetLanguage");
+        content.Add(
+            new StringContent(performanceProfile),
+            "performanceProfile");
         var audio = new ByteArrayContent(phraseWav);
         audio.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
         content.Add(audio, "audio", "phrase.wav");

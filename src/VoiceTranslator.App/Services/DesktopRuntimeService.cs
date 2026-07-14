@@ -32,6 +32,7 @@ public sealed class DesktopRuntimeService :
         new(new CoreAudioEndpointSource());
     private readonly CancellationTokenSource lifetime = new();
     private readonly SemaphoreSlim sessionGate = new(1, 1);
+    private readonly SemaphoreSlim voiceProfileRecordingGate = new(1, 1);
     private WorkerProcessManager? workerManager;
     private LocalWorkerClient? workerClient;
     private Task? deviceRefreshTask;
@@ -40,6 +41,13 @@ public sealed class DesktopRuntimeService :
     private MMDevice? sessionCaptureDevice;
     private MMDevice? sessionOutputDevice;
     private MMDevice? sessionVirtualOutputDevice;
+    private VoiceProfileRecordingSession? voiceProfileRecording;
+    private MMDeviceEnumerator? voiceProfileDeviceEnumerator;
+    private MMDevice? voiceProfileCaptureDevice;
+    private string? voiceProfileRecordingName;
+    private int voiceProfileRecordingSecondsRemaining =
+        MainViewModel.VoiceProfileRecordingLimitSeconds;
+    private double voiceProfileRecordingInputLevel;
 
     public DesktopRuntimeService(
         MainViewModel viewModel,
@@ -51,6 +59,10 @@ public sealed class DesktopRuntimeService :
         this.viewModel.StopRequested += OnStopRequested;
         this.viewModel.RenameVoiceProfileRequested += OnRenameVoiceProfileRequested;
         this.viewModel.DeleteVoiceProfileRequested += OnDeleteVoiceProfileRequested;
+        this.viewModel.StartVoiceProfileRecordingRequested +=
+            OnStartVoiceProfileRecordingRequested;
+        this.viewModel.StopVoiceProfileRecordingRequested +=
+            OnStopVoiceProfileRecordingRequested;
     }
 
     public ILocalTranslationWorker? Worker => workerClient;
@@ -138,27 +150,40 @@ public sealed class DesktopRuntimeService :
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         await lifetime.CancelAsync().ConfigureAwait(false);
-        await StopTranslationSessionAsync().ConfigureAwait(false);
-        if (deviceRefreshTask is not null)
+        try
         {
-            try
+            await CancelVoiceProfileRecordingAsync().ConfigureAwait(false);
+            await StopTranslationSessionAsync().ConfigureAwait(false);
+            if (deviceRefreshTask is not null)
             {
-                await deviceRefreshTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
+                try
+                {
+                    await deviceRefreshTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
             }
         }
-
-        workerClient?.Dispose();
-        workerClient = null;
-        if (workerManager is not null)
+        finally
         {
-            await workerManager
-                .StopAsync(cancellationToken)
-                .ConfigureAwait(false);
-            await workerManager.DisposeAsync().ConfigureAwait(false);
+            workerClient?.Dispose();
+            workerClient = null;
+            WorkerProcessManager? manager = workerManager;
             workerManager = null;
+            if (manager is not null)
+            {
+                try
+                {
+                    await manager
+                        .StopAsync(CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+                finally
+                {
+                    await manager.DisposeAsync().ConfigureAwait(false);
+                }
+            }
         }
     }
 
@@ -209,8 +234,13 @@ public sealed class DesktopRuntimeService :
         viewModel.StopRequested -= OnStopRequested;
         viewModel.RenameVoiceProfileRequested -= OnRenameVoiceProfileRequested;
         viewModel.DeleteVoiceProfileRequested -= OnDeleteVoiceProfileRequested;
+        viewModel.StartVoiceProfileRecordingRequested -=
+            OnStartVoiceProfileRecordingRequested;
+        viewModel.StopVoiceProfileRecordingRequested -=
+            OnStopVoiceProfileRecordingRequested;
         devices.Dispose();
         sessionGate.Dispose();
+        voiceProfileRecordingGate.Dispose();
         lifetime.Dispose();
     }
 
@@ -235,7 +265,9 @@ public sealed class DesktopRuntimeService :
         string? selectedOutputId = viewModel.SelectedPhysicalOutput?.Id;
         string? selectedVirtualOutputId = viewModel.SelectedVirtualOutput?.Id;
         OutputMode outputMode = viewModel.SelectedOutputMode;
-        bool selectedDeviceLost = viewModel.State == SessionState.Listening
+        bool selectedDeviceLost =
+            (viewModel.State == SessionState.Listening
+                || viewModel.IsVoiceProfileRecording)
             && (
                 selectedCaptureId is not null
                 && !captures.Any(device => device.Id == selectedCaptureId)
@@ -251,6 +283,15 @@ public sealed class DesktopRuntimeService :
             .ConfigureAwait(false);
         if (selectedDeviceLost)
         {
+            if (viewModel.IsVoiceProfileRecording)
+            {
+                await CancelVoiceProfileRecordingAsync().ConfigureAwait(false);
+                await DispatchAsync(() => viewModel.CompleteVoiceProfileRecording(
+                        "Микрофон отключён. Запись профиля отменена."))
+                    .ConfigureAwait(false);
+                return;
+            }
+
             await StopTranslationSessionAsync().ConfigureAwait(false);
             await ReportFailureAsync(
                     "Выбранное аудиоустройство отключено. "
@@ -346,6 +387,180 @@ public sealed class DesktopRuntimeService :
         }
     }
 
+    private async void OnStartVoiceProfileRecordingRequested(
+        object? sender,
+        EventArgs eventArgs)
+    {
+        try
+        {
+            await StartVoiceProfileRecordingAsync().ConfigureAwait(false);
+        }
+        catch (Exception error)
+            when (!lifetime.IsCancellationRequested)
+        {
+            await CancelVoiceProfileRecordingAsync().ConfigureAwait(false);
+            await DispatchAsync(() => viewModel.CompleteVoiceProfileRecording(
+                    $"Не удалось начать запись профиля: {error.Message}"))
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async void OnStopVoiceProfileRecordingRequested(
+        object? sender,
+        EventArgs eventArgs)
+    {
+        await CompleteVoiceProfileRecordingAsync().ConfigureAwait(false);
+    }
+
+    private async void OnVoiceProfileRecordingLimitReached()
+    {
+        await CompleteVoiceProfileRecordingAsync().ConfigureAwait(false);
+    }
+
+    private async Task StartVoiceProfileRecordingAsync()
+    {
+        await voiceProfileRecordingGate.WaitAsync(lifetime.Token)
+            .ConfigureAwait(false);
+        try
+        {
+            if (voiceProfileRecording is not null)
+            {
+                return;
+            }
+
+            AudioDeviceInfo microphone = viewModel.SelectedMicrophone
+                ?? throw new InvalidOperationException(
+                    "Микрофон не выбран.");
+            voiceProfileRecordingName = viewModel.VoiceProfileName.Trim();
+            ArgumentException.ThrowIfNullOrWhiteSpace(
+                voiceProfileRecordingName);
+            voiceProfileDeviceEnumerator = new MMDeviceEnumerator();
+            voiceProfileCaptureDevice = voiceProfileDeviceEnumerator
+                .GetDevice(microphone.Id);
+            var capture = new WasapiMicrophoneCapture(
+                voiceProfileCaptureDevice);
+            var recording = new VoiceProfileRecordingSession(capture);
+            recording.InputLevelChanged +=
+                OnVoiceProfileRecordingInputLevelChanged;
+            recording.SecondsRemainingChanged +=
+                OnVoiceProfileRecordingSecondsRemainingChanged;
+            recording.LimitReached += OnVoiceProfileRecordingLimitReached;
+            voiceProfileRecordingSecondsRemaining =
+                MainViewModel.VoiceProfileRecordingLimitSeconds;
+            voiceProfileRecordingInputLevel = 0;
+            voiceProfileRecording = recording;
+            recording.Start();
+        }
+        finally
+        {
+            voiceProfileRecordingGate.Release();
+        }
+    }
+
+    private async Task CompleteVoiceProfileRecordingAsync()
+    {
+        await voiceProfileRecordingGate.WaitAsync().ConfigureAwait(false);
+        byte[] referenceWav = [];
+        VoiceProfileRecordingSession? recording = null;
+        try
+        {
+            recording = voiceProfileRecording;
+            if (recording is null)
+            {
+                return;
+            }
+
+            voiceProfileRecording = null;
+            referenceWav = await recording.StopAsync(lifetime.Token)
+                .ConfigureAwait(false);
+            string name = voiceProfileRecordingName
+                ?? throw new InvalidOperationException(
+                    "Имя голосового профиля не задано.");
+            VoiceProfile created = await voiceProfileStore
+                .CreateAsync(name, referenceWav, lifetime.Token)
+                .ConfigureAwait(false);
+            IReadOnlyList<VoiceProfile> profiles = await voiceProfileStore
+                .LoadProfilesAsync(lifetime.Token)
+                .ConfigureAwait(false);
+            await DispatchAsync(() =>
+                {
+                    viewModel.ApplyVoiceProfiles(profiles, created.Id);
+                    viewModel.CompleteVoiceProfileRecording(
+                        $"Профиль «{created.Name}» записан и сохранён.");
+                })
+                .ConfigureAwait(false);
+        }
+        catch (Exception error)
+            when (!lifetime.IsCancellationRequested)
+        {
+            await DispatchAsync(() => viewModel.CompleteVoiceProfileRecording(
+                    $"Профиль не сохранён: {error.Message}"))
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(referenceWav);
+            await DisposeVoiceProfileRecordingResourcesAsync(recording)
+                .ConfigureAwait(false);
+            voiceProfileRecordingGate.Release();
+        }
+    }
+
+    private async Task CancelVoiceProfileRecordingAsync()
+    {
+        await voiceProfileRecordingGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            VoiceProfileRecordingSession? recording = voiceProfileRecording;
+            voiceProfileRecording = null;
+            await DisposeVoiceProfileRecordingResourcesAsync(recording)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            voiceProfileRecordingGate.Release();
+        }
+    }
+
+    private async Task DisposeVoiceProfileRecordingResourcesAsync(
+        VoiceProfileRecordingSession? recording)
+    {
+        if (recording is not null)
+        {
+            recording.InputLevelChanged -=
+                OnVoiceProfileRecordingInputLevelChanged;
+            recording.SecondsRemainingChanged -=
+                OnVoiceProfileRecordingSecondsRemainingChanged;
+            recording.LimitReached -= OnVoiceProfileRecordingLimitReached;
+            await recording.DisposeAsync().ConfigureAwait(false);
+        }
+
+        voiceProfileCaptureDevice?.Dispose();
+        voiceProfileCaptureDevice = null;
+        voiceProfileDeviceEnumerator?.Dispose();
+        voiceProfileDeviceEnumerator = null;
+        voiceProfileRecordingName = null;
+    }
+
+    private async void OnVoiceProfileRecordingInputLevelChanged(double percent)
+    {
+        voiceProfileRecordingInputLevel = percent;
+        await DispatchAsync(() => viewModel.ReportVoiceProfileRecordingProgress(
+                voiceProfileRecordingSecondsRemaining,
+                percent))
+            .ConfigureAwait(false);
+    }
+
+    private async void OnVoiceProfileRecordingSecondsRemainingChanged(
+        int secondsRemaining)
+    {
+        voiceProfileRecordingSecondsRemaining = secondsRemaining;
+        await DispatchAsync(() => viewModel.ReportVoiceProfileRecordingProgress(
+                secondsRemaining,
+                voiceProfileRecordingInputLevel))
+            .ConfigureAwait(false);
+    }
+
     private async Task StartTranslationSessionAsync()
     {
         await sessionGate.WaitAsync().ConfigureAwait(false);
@@ -371,30 +586,15 @@ public sealed class DesktopRuntimeService :
                     "Язык перевода не выбран.");
 
             VoiceProfile? selectedProfile = viewModel.SelectedVoiceProfile;
-            string newProfileName = viewModel.VoiceProfileName.Trim();
-            byte[]? referenceWav = selectedProfile is null
-                ? null
-                : await voiceProfileStore
-                    .LoadReferenceAsync(selectedProfile.Id, lifetime.Token)
-                    .ConfigureAwait(false);
-            Func<byte[], CancellationToken, Task>? referenceCaptured =
-                selectedProfile is null
-                    ? async (wave, token) =>
-                    {
-                        VoiceProfile created = await voiceProfileStore
-                            .CreateAsync(newProfileName, wave, token)
-                            .ConfigureAwait(false);
-                        IReadOnlyList<VoiceProfile> profiles =
-                            await voiceProfileStore
-                                .LoadProfilesAsync(token)
-                                .ConfigureAwait(false);
-                        await DispatchAsync(
-                                () => viewModel.ApplyVoiceProfiles(
-                                    profiles,
-                                    created.Id))
-                            .ConfigureAwait(false);
-                    }
-            : null;
+            if (selectedProfile is null)
+            {
+                throw new InvalidOperationException(
+                    "Голосовой профиль не выбран.");
+            }
+
+            byte[]? referenceWav = await voiceProfileStore
+                .LoadReferenceAsync(selectedProfile.Id, lifetime.Token)
+                .ConfigureAwait(false);
 
             DesktopTranslationSession session;
             try
@@ -416,7 +616,9 @@ public sealed class DesktopRuntimeService :
                     targetLanguage,
                     this,
                     referenceWav,
-                    referenceCaptured);
+                    referenceCaptured: null,
+                    performanceProfile:
+                        viewModel.SelectedPerformanceProfile.Code);
                 referenceWav = null;
             }
             finally

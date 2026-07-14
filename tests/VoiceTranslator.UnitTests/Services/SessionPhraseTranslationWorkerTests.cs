@@ -16,7 +16,8 @@ public sealed class SessionPhraseTranslationWorkerTests
         var adapter = new SessionPhraseTranslationWorker(
             worker,
             sessionId,
-            "en");
+            "en",
+            "low-memory");
         var phrase = new Phrase("phrase-1", [1, 0, 2, 0]);
 
         byte[] pcm = await adapter.TranslateAsync(
@@ -25,6 +26,7 @@ public sealed class SessionPhraseTranslationWorkerTests
 
         worker.SessionId.Should().Be(sessionId);
         worker.TargetLanguage.Should().Be("en");
+        worker.PerformanceProfile.Should().Be("low-memory");
         worker.InputWave.Should().StartWith(
             [(byte)'R', (byte)'I', (byte)'F', (byte)'F']);
         pcm.Should().Equal(3, 0, 4, 0);
@@ -34,6 +36,7 @@ public sealed class SessionPhraseTranslationWorkerTests
     {
         public Guid SessionId { get; private set; }
         public string? TargetLanguage { get; private set; }
+        public string? PerformanceProfile { get; private set; }
         public byte[] InputWave { get; private set; } = [];
 
         public Task<PhraseTranslationResult> TranslatePhraseAsync(
@@ -53,6 +56,23 @@ public sealed class SessionPhraseTranslationWorkerTests
                 2,
                 3,
                 "balanced"));
+        }
+
+        public Task<PhraseTranslationResult> TranslatePhraseAsync(
+            Guid sessionId,
+            string targetLanguage,
+            byte[] phraseWav,
+            Guid requestId,
+            string performanceProfile,
+            CancellationToken cancellationToken)
+        {
+            PerformanceProfile = performanceProfile;
+            return TranslatePhraseAsync(
+                sessionId,
+                targetLanguage,
+                phraseWav,
+                requestId,
+                cancellationToken);
         }
 
         public Task CheckHealthAsync(CancellationToken cancellationToken) =>

@@ -48,7 +48,6 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.ColumnSpan="2">
@@ -66,73 +65,18 @@
                             Grid.ColumnSpan="2"
                             Margin="0,14,0,0">
                     <TextBlock FontWeight="SemiBold"
-                               Text="Голосовой профиль" />
-                    <Grid Margin="0,6,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <ComboBox MinHeight="32"
-                                  AutomationProperties.Name="Голосовой профиль"
-                                  DisplayMemberPath="Name"
-                                  ItemsSource="{Binding VoiceProfiles}"
-                                  SelectedItem="{Binding SelectedVoiceProfile}"
-                                  Text="Сохранённых профилей нет" />
-                        <Button Grid.Column="1"
-                                MinWidth="86"
-                                MinHeight="32"
-                                Margin="8,0,0,0"
-                                AutomationProperties.Name="Создать голосовой профиль"
-                                Command="{Binding NewVoiceProfileCommand}"
-                                Content="Новый" />
-                        <Button Grid.Column="2"
-                                MinWidth="86"
-                                MinHeight="32"
-                                Margin="8,0,0,0"
-                                AutomationProperties.Name="Удалить голосовой профиль"
-                                Command="{Binding DeleteVoiceProfileCommand}"
-                                Content="Удалить" />
-                    </Grid>
-                    <Grid Margin="0,8,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBox MinHeight="32"
-                                 Padding="8,5"
-                                 AutomationProperties.Name="Имя голосового профиля"
-                                 MaxLength="60"
-                                 Text="{Binding VoiceProfileName, UpdateSourceTrigger=PropertyChanged}" />
-                        <Button Grid.Column="1"
-                                MinWidth="120"
-                                MinHeight="32"
-                                Margin="8,0,0,0"
-                                AutomationProperties.Name="Переименовать голосовой профиль"
-                                Command="{Binding RenameVoiceProfileCommand}"
-                                Content="Переименовать" />
-                    </Grid>
-                    <TextBlock Margin="0,6,0,0"
-                               Foreground="#FF5B6570"
-                               TextWrapping="Wrap"
-                               Text="Новый профиль будет создан из первой фразы и затем доступен для всех языков." />
-                </StackPanel>
-
-                <StackPanel Grid.Row="2"
-                            Grid.ColumnSpan="2"
-                            Margin="0,14,0,0">
-                    <TextBlock FontWeight="SemiBold"
                                Text="Микрофон" />
                     <ComboBox Margin="0,6,0,0"
                               MinHeight="32"
                               AutomationProperties.Name="Микрофон"
                               DisplayMemberPath="Name"
+                              IsEnabled="{Binding CanChangeConfiguration}"
                               ItemsSource="{Binding Microphones}"
                               SelectedItem="{Binding SelectedMicrophone}"
                               Text="Доступные микрофоны не найдены" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="3"
+                <StackPanel Grid.Row="2"
                             Grid.ColumnSpan="2"
                             Margin="0,14,0,0">
                     <TextBlock FontWeight="SemiBold"
@@ -146,7 +90,7 @@
                               Text="Устройства вывода не найдены" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="4"
+                <StackPanel Grid.Row="3"
                             Grid.ColumnSpan="2"
                             Margin="0,14,0,0">
                     <TextBlock FontWeight="SemiBold"
@@ -164,18 +108,18 @@
                     </ComboBox>
                 </StackPanel>
 
-                <StackPanel Grid.Row="5"
+                <StackPanel Grid.Row="4"
                             Grid.ColumnSpan="2"
                             Margin="0,14,0,0">
                     <TextBlock FontWeight="SemiBold"
-                               Text="Выход виртуального кабеля" />
+                               Text="Виртуальный выход для приложений" />
                     <ComboBox Margin="0,6,0,0"
                               MinHeight="32"
-                              AutomationProperties.Name="Устройство виртуального кабеля"
+                              AutomationProperties.Name="Виртуальный выход для приложений"
                               DisplayMemberPath="Name"
                               ItemsSource="{Binding VirtualOutputs}"
                               SelectedItem="{Binding SelectedVirtualOutput}"
-                              Text="Виртуальные выходы не найдены" />
+                              Text="Виртуальный аудиокабель не найден" />
                     <TextBlock Margin="0,6,0,0"
                                AutomationProperties.Name="Предупреждение о выводе"
                                Text="{Binding OutputWarning}"
@@ -268,6 +212,88 @@
                                Text="{Binding StatusMessage}"
                                TextWrapping="Wrap" />
                 </Border>
+
+                <StackPanel Margin="0,14,0,0">
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Голосовой профиль" />
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox MinHeight="32"
+                                  AutomationProperties.Name="Голосовой профиль"
+                                  DisplayMemberPath="Name"
+                                  IsEnabled="{Binding CanChangeConfiguration}"
+                                  ItemsSource="{Binding VoiceProfiles}"
+                                  SelectedItem="{Binding SelectedVoiceProfile}"
+                                  Text="Сохранённых профилей нет" />
+                        <Button Grid.Column="1"
+                                MinWidth="86"
+                                MinHeight="32"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Создать голосовой профиль"
+                                Command="{Binding NewVoiceProfileCommand}"
+                                Content="Новый" />
+                        <Button Grid.Column="2"
+                                MinWidth="86"
+                                MinHeight="32"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Удалить голосовой профиль"
+                                Command="{Binding DeleteVoiceProfileCommand}"
+                                Content="Удалить" />
+                    </Grid>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox MinHeight="32"
+                                 Padding="8,5"
+                                 AutomationProperties.Name="Имя голосового профиля"
+                                 IsEnabled="{Binding CanChangeConfiguration}"
+                                 MaxLength="60"
+                                 Text="{Binding VoiceProfileName, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Grid.Column="1"
+                                MinWidth="120"
+                                MinHeight="32"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Переименовать голосовой профиль"
+                                Command="{Binding RenameVoiceProfileCommand}"
+                                Content="Переименовать" />
+                    </Grid>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center"
+                                   Foreground="#FF5B6570"
+                                   AutomationProperties.LiveSetting="Polite"
+                                   Text="{Binding VoiceProfileRecordingStatus}"
+                                   TextWrapping="Wrap" />
+                        <Button Grid.Column="1"
+                                MinWidth="120"
+                                MinHeight="32"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Начать запись голосового профиля"
+                                Command="{Binding StartVoiceProfileRecordingCommand}"
+                                Content="Начать запись" />
+                        <Button Grid.Column="2"
+                                MinWidth="110"
+                                MinHeight="32"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Завершить запись голосового профиля"
+                                Command="{Binding StopVoiceProfileRecordingCommand}"
+                                Content="Завершить" />
+                    </Grid>
+                    <TextBlock Margin="0,6,0,0"
+                               Foreground="#FF5B6570"
+                               TextWrapping="Wrap"
+                               Text="Сохранённый профиль применяется автоматически ко всем языкам и новым сессиям." />
+                </StackPanel>
 
                 <StackPanel Margin="0,18,0,0"
                             HorizontalAlignment="Right"

@@ -14,7 +14,8 @@
 
 ## Start preconditions
 
-- A saved voice profile is selected, or a non-empty new profile name is set.
+- A saved voice profile is selected. New profiles are recorded separately
+  before translation starts.
 - Local worker authentication is valid.
 - Capability catalog is unexpired.
 - Selected language pair passes provider preflight.

@@ -32,13 +32,17 @@ uv run --project worker pytest worker/tests -q
 
 1. Run preflight and confirm RTX 3070, selected profile, hashes and 16 language
    probes.
-2. Create and name a voice profile from a short current-speaker phrase, or
-   select an existing encrypted local profile.
-3. Translate ten approved Russian phrases to English.
-4. Repeat a validation phrase for every other target language.
-5. Test physical, virtual and dual outputs.
-6. Force worker termination and CUDA OOM.
-7. Verify safe state within two seconds, no ordinary session artifacts on disk,
+2. Create and name a voice profile with the separate recording controls. Speak
+   for 3–15 seconds and stop manually, or allow the 15-second limit to stop the
+   recording automatically. Alternatively, select an existing encrypted local
+   profile.
+3. Select Economical, Balance, or Performance before starting translation.
+4. Translate ten approved Russian phrases to English.
+5. Repeat a validation phrase for every other target language.
+6. Test physical, virtual and dual outputs with an installed Windows virtual
+   audio cable; use its paired capture endpoint in Discord or Telegram.
+7. Force worker termination and CUDA OOM.
+8. Verify safe state within two seconds, no ordinary session artifacts on disk,
    and only DPAPI-encrypted data in the voice-profile directory.
 
 Expected: p90 output begins within five seconds; only preflight-passing

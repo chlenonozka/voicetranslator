@@ -17,8 +17,9 @@ class Recognition:
 
 
 class RussianAsr:
-    def __init__(self, model: WhisperLike) -> None:
+    def __init__(self, model: WhisperLike, *, beam_size: int = 5) -> None:
         self.model = model
+        self.beam_size = beam_size
 
     def transcribe(self, audio: object) -> Recognition:
         normalized_audio = _decode_worker_wave(audio)
@@ -27,7 +28,7 @@ class RussianAsr:
             language="ru",
             task="transcribe",
             vad_filter=True,
-            beam_size=5,
+            beam_size=self.beam_size,
             condition_on_previous_text=False,
         )
         values = list(segments)

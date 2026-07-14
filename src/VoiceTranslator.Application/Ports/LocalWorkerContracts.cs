@@ -27,6 +27,12 @@ public interface ILocalTranslationWorker : ILocalWorker
         byte[] referenceWav,
         CancellationToken cancellationToken);
 
+    Task<Guid> CreateSpeakerSessionAsync(
+        byte[] referenceWav,
+        string performanceProfile,
+        CancellationToken cancellationToken) =>
+        CreateSpeakerSessionAsync(referenceWav, cancellationToken);
+
     Task DeleteSpeakerSessionAsync(
         Guid sessionId,
         CancellationToken cancellationToken);
@@ -37,6 +43,20 @@ public interface ILocalTranslationWorker : ILocalWorker
         byte[] phraseWav,
         Guid requestId,
         CancellationToken cancellationToken);
+
+    Task<PhraseTranslationResult> TranslatePhraseAsync(
+        Guid sessionId,
+        string targetLanguage,
+        byte[] phraseWav,
+        Guid requestId,
+        string performanceProfile,
+        CancellationToken cancellationToken) =>
+        TranslatePhraseAsync(
+            sessionId,
+            targetLanguage,
+            phraseWav,
+            requestId,
+            cancellationToken);
 
     Task CancelAsync(
         Guid requestId,

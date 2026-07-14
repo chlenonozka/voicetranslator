@@ -113,16 +113,52 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public void NewProfileNameEnablesStartWithoutSavedProfile()
+    public void NewProfileMustBeRecordedBeforeTranslationCanStart()
     {
         MainViewModel viewModel = CreateReadyViewModel();
+        int recordingStarts = 0;
+        int recordingStops = 0;
+        viewModel.StartVoiceProfileRecordingRequested +=
+            (_, _) => recordingStarts++;
+        viewModel.StopVoiceProfileRecordingRequested +=
+            (_, _) => recordingStops++;
 
         viewModel.NewVoiceProfileCommand.Execute(null);
         viewModel.VoiceProfileName = "Новый голос";
 
         viewModel.SelectedVoiceProfile.Should().BeNull();
-        viewModel.State.Should().Be(SessionState.Ready);
-        viewModel.StartCommand.CanExecute(null).Should().BeTrue();
+        viewModel.State.Should().Be(SessionState.Draft);
+        viewModel.StartCommand.CanExecute(null).Should().BeFalse();
+        viewModel.StartVoiceProfileRecordingCommand.CanExecute(null)
+            .Should().BeTrue();
+
+        viewModel.StartVoiceProfileRecordingCommand.Execute(null);
+
+        viewModel.IsVoiceProfileRecording.Should().BeTrue();
+        viewModel.StopVoiceProfileRecordingCommand.CanExecute(null)
+            .Should().BeTrue();
+        recordingStarts.Should().Be(1);
+
+        viewModel.StopVoiceProfileRecordingCommand.Execute(null);
+
+        recordingStops.Should().Be(1);
+    }
+
+    [Fact]
+    public void PerformanceProfileCanBeSelectedBeforeSession()
+    {
+        MainViewModel viewModel = CreateReadyViewModel();
+        viewModel.PerformanceProfiles.Select(profile => profile.DisplayName)
+            .Should().Equal("Экономный", "Баланс", "Производительность");
+        PerformanceProfileOption lowMemory = viewModel.PerformanceProfiles
+            .Single(profile => profile.Code == "low-memory");
+
+        viewModel.SelectedPerformanceProfile = lowMemory;
+
+        viewModel.SelectedPerformanceProfile.Code.Should().Be("low-memory");
+        viewModel.CanChangeConfiguration.Should().BeTrue();
+        viewModel.StartCommand.Execute(null);
+        viewModel.CanChangeConfiguration.Should().BeFalse();
     }
 
     [Fact]
@@ -227,8 +263,9 @@ public sealed class MainViewModelTests
         viewModel.IsWorkerReady.Should().BeTrue();
         viewModel.IsModelPreflightPassed.Should().BeTrue();
         viewModel.PerformanceProfile.Should().Be("balanced");
+        viewModel.SelectedPerformanceProfile.Code.Should().Be("balanced");
         viewModel.ModelInventorySummary.Should().Contain("Все модели проверены");
-        viewModel.PerformanceProfileDisplay.Should().Be("Сбалансированный");
+        viewModel.PerformanceProfileDisplay.Should().Be("Баланс");
     }
 
     [Fact]
@@ -273,7 +310,7 @@ public sealed class MainViewModelTests
         viewModel.SelectedPhysicalOutput = null;
 
         viewModel.StartCommand.CanExecute(null).Should().BeFalse();
-        viewModel.StatusMessage.Should().Contain("виртуального кабеля");
+        viewModel.StatusMessage.Should().Contain("Виртуальный аудиокабель");
 
         viewModel.SelectedVirtualOutput =
             new AudioDeviceInfo("virtual", "VB-CABLE", true);
@@ -302,7 +339,7 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public void DeviceListFallsBackToAllRenderDevicesWhenNoVirtualCableIsDetected()
+    public void DeviceListDoesNotExposePhysicalOutputAsVirtualCable()
     {
         MainViewModel viewModel = new();
         var speakers = new AudioDeviceInfo("out-1", "Speakers", false);
@@ -311,8 +348,34 @@ public sealed class MainViewModelTests
 
         viewModel.PhysicalOutputs.Should().ContainSingle().Which
             .Should().Be(speakers);
-        viewModel.VirtualOutputs.Should().ContainSingle().Which
-            .Should().Be(speakers);
+        viewModel.VirtualOutputs.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void SelectedVoiceProfilePersistsIntoNewSession()
+    {
+        MainViewModel viewModel = CreateReadyViewModel();
+        VoiceProfile selectedProfile = new(
+            Guid.NewGuid(),
+            "Профиль 2",
+            DateTimeOffset.UtcNow);
+        viewModel.ApplyVoiceProfiles(
+            [
+                new VoiceProfile(
+                    Guid.NewGuid(),
+                    "Профиль 1",
+                    DateTimeOffset.UtcNow),
+                selectedProfile,
+            ],
+            selectedProfile.Id);
+
+        viewModel.StartCommand.Execute(null);
+        viewModel.StopCommand.Execute(null);
+        viewModel.NewSessionCommand.Execute(null);
+
+        viewModel.SelectedVoiceProfile.Should().Be(selectedProfile);
+        viewModel.StatusMessage.Should().Contain("Профиль 2");
+        viewModel.StartCommand.CanExecute(null).Should().BeTrue();
     }
 
     [Fact]

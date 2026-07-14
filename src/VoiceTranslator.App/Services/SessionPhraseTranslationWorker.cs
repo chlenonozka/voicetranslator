@@ -10,15 +10,18 @@ public sealed class SessionPhraseTranslationWorker
     private readonly ILocalTranslationWorker worker;
     private readonly Guid sessionId;
     private readonly string targetLanguage;
+    private readonly string performanceProfile;
 
     public SessionPhraseTranslationWorker(
         ILocalTranslationWorker worker,
         Guid sessionId,
-        string targetLanguage)
+        string targetLanguage,
+        string performanceProfile = "balanced")
     {
         this.worker = worker;
         this.sessionId = sessionId;
         this.targetLanguage = targetLanguage;
+        this.performanceProfile = performanceProfile;
     }
 
     public async Task<byte[]> TranslateAsync(
@@ -34,6 +37,7 @@ public sealed class SessionPhraseTranslationWorker
                 targetLanguage,
                 WaveMemoryCodec.EncodeWorkerWave(phrase.Pcm16),
                 requestId,
+                performanceProfile,
                 cancellationToken)
             .ConfigureAwait(false);
         return WaveMemoryCodec.DecodeSynthesizedWave(result.AudioWav);

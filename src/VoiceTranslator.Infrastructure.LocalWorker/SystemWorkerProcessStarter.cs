@@ -27,10 +27,27 @@ public sealed class SystemWorkerProcessStarter : IWorkerProcessStarter
         var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException(
                 "Python worker process could not be started.");
-        return new SystemWorkerProcess(process);
+        try
+        {
+            return new SystemWorkerProcess(
+                process,
+                WindowsProcessJob.CreateAndAssign(process));
+        }
+        catch
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+
+            process.Dispose();
+            throw;
+        }
     }
 
-    private sealed class SystemWorkerProcess(Process process) : IWorkerProcess
+    private sealed class SystemWorkerProcess(
+        Process process,
+        WindowsProcessJob processJob) : IWorkerProcess
     {
         public int Id => process.Id;
         public bool HasExited => process.HasExited;
@@ -40,6 +57,10 @@ public sealed class SystemWorkerProcessStarter : IWorkerProcessStarter
 
         public void KillTree() => process.Kill(entireProcessTree: true);
 
-        public void Dispose() => process.Dispose();
+        public void Dispose()
+        {
+            process.Dispose();
+            processJob.Dispose();
+        }
     }
 }

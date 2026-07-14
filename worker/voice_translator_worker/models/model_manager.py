@@ -257,6 +257,7 @@ class ProfileModelResidency:
         whisper_model = {
             "balanced": "medium",
             "low-memory": "small",
+            "performance": "medium",
         }.get(profile)
         if whisper_model is None:
             raise ValueError(f"Unknown performance profile: {profile}")

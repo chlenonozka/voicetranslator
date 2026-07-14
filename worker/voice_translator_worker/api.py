@@ -124,7 +124,13 @@ def create_app(
         status_code=status.HTTP_201_CREATED,
         dependencies=[Depends(require_token)],
     )
-    async def create_speaker_session(request: Request) -> dict[str, str]:
+    async def create_speaker_session(
+        request: Request,
+        performance_profile: Annotated[
+            str,
+            Header(alias="X-Performance-Profile"),
+        ] = "balanced",
+    ) -> dict[str, str]:
         active_pipeline = _require_pipeline(pipeline)
         if request.headers.get("content-type", "").split(";")[0] != "audio/wav":
             raise HTTPException(
@@ -133,11 +139,31 @@ def create_app(
             )
         reference_wav = await request.body()
         _validate_upload_size(reference_wav)
-        try:
-            session_id = await run_in_threadpool(
-                active_pipeline.create_speaker_session,
-                reference_wav,
+        if performance_profile not in {
+            "balanced",
+            "low-memory",
+            "performance",
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="invalid performance profile",
             )
+        try:
+            if active_recovery is not None:
+                session_id = await run_in_threadpool(
+                    active_recovery.run,
+                    lambda profile: active_pipeline.create_speaker_session(
+                        reference_wav,
+                        profile,
+                    ),
+                    performance_profile,
+                )
+            else:
+                session_id = await run_in_threadpool(
+                    active_pipeline.create_speaker_session,
+                    reference_wav,
+                    performance_profile,
+                )
         except Exception as error:
             raise _worker_stage_error(
                 "speaker conditioning",
@@ -166,6 +192,10 @@ def create_app(
         session_id: Annotated[UUID, Form(alias="sessionId")],
         target_language: Annotated[str, Form(alias="targetLanguage")],
         audio: Annotated[UploadFile, File()],
+        performance_profile: Annotated[
+            str,
+            Form(alias="performanceProfile"),
+        ] = "balanced",
         x_request_id: Annotated[
             UUID | None,
             Header(alias="X-Request-Id"),
@@ -182,6 +212,15 @@ def create_app(
         audio_wav = await audio.read(MAX_WAV_BYTES + 1)
         await audio.close()
         _validate_upload_size(audio_wav)
+        if performance_profile not in {
+            "balanced",
+            "low-memory",
+            "performance",
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="invalid performance profile",
+            )
 
         try:
             if active_recovery is not None:
@@ -193,6 +232,7 @@ def create_app(
                         audio_wav,
                         performance_profile=profile,
                     ),
+                    performance_profile,
                 )
             else:
                 result = await run_in_threadpool(
@@ -200,6 +240,7 @@ def create_app(
                     session_id,
                     target_language,
                     audio_wav,
+                    performance_profile=performance_profile,
                 )
             _reject_cancelled(cancellations, request_id)
         except SpeakerSessionNotFound as error:

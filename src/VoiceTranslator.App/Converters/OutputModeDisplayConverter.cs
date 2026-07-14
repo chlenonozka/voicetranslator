@@ -15,8 +15,8 @@ public sealed class OutputModeDisplayConverter : IValueConverter
         return value switch
         {
             OutputMode.Physical => "Физический выход",
-            OutputMode.VirtualCable => "Виртуальный кабель",
-            OutputMode.Both => "Оба выхода",
+            OutputMode.VirtualCable => "Виртуальный микрофон (Discord/Telegram)",
+            OutputMode.Both => "Динамики + виртуальный микрофон",
             _ => value?.ToString() ?? string.Empty,
         };
     }

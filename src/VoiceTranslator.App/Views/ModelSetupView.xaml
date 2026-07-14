@@ -14,7 +14,18 @@
                        AutomationProperties.Name="Состояние проверки моделей"
                        Text="{Binding ModelPreflightState}" />
             <TextBlock Margin="0,8,0,0"
-                       Text="{Binding PerformanceProfileDisplay, StringFormat=Профиль производительности: {0}}" />
+                       FontWeight="SemiBold"
+                       Text="Профиль производительности" />
+            <ComboBox Margin="0,6,0,0"
+                      MinHeight="32"
+                      AutomationProperties.Name="Профиль производительности"
+                      DisplayMemberPath="DisplayName"
+                      IsEnabled="{Binding CanChangeConfiguration}"
+                      ItemsSource="{Binding PerformanceProfiles}"
+                      SelectedItem="{Binding SelectedPerformanceProfile}" />
+            <TextBlock Margin="0,6,0,0"
+                       Foreground="#FF5B6570"
+                       Text="{Binding PerformanceProfileDisplay, StringFormat=Рекомендованный при проверке: {0}}" />
             <TextBlock Margin="0,8,0,0"
                        AutomationProperties.Name="Сведения о моделях"
                        Text="{Binding ModelInventorySummary}"

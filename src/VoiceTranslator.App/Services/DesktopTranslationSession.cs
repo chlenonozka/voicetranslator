@@ -15,6 +15,7 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
     private readonly string targetLanguage;
     private readonly ISessionFailureObserver? failureObserver;
     private readonly Func<byte[], CancellationToken, Task>? referenceCaptured;
+    private readonly string performanceProfile;
     private readonly Pcm16PhraseSegmenter segmenter = new(
         sampleRate: 16_000,
         silenceDuration: TimeSpan.FromMilliseconds(500),
@@ -43,7 +44,8 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
         string targetLanguage,
         ISessionFailureObserver? failureObserver = null,
         byte[]? existingReferenceWav = null,
-        Func<byte[], CancellationToken, Task>? referenceCaptured = null)
+        Func<byte[], CancellationToken, Task>? referenceCaptured = null,
+        string performanceProfile = "balanced")
     {
         this.worker = worker;
         this.capture = capture;
@@ -52,6 +54,7 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
         this.failureObserver = failureObserver;
         initialReferenceWav = existingReferenceWav;
         this.referenceCaptured = referenceCaptured;
+        this.performanceProfile = performanceProfile;
     }
 
     public event Action<Exception>? Failed;
@@ -326,12 +329,13 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
                     createdSessionId = await worker
                         .CreateSpeakerSessionAsync(
                             referenceWav,
+                            performanceProfile,
                             cancellationToken)
                         .ConfigureAwait(false);
                 },
                 startPercent: 15,
                 limitPercent: 90,
-                label: "Создание голосового профиля",
+                label: "Подготовка голосового профиля",
                 cancellationToken)
             .ConfigureAwait(false);
         speakerSessionId = createdSessionId;
@@ -339,7 +343,8 @@ public sealed class DesktopTranslationSession : IAsyncDisposable, ISessionStoppe
             new SessionPhraseTranslationWorker(
                 worker,
                 createdSessionId,
-                targetLanguage),
+                targetLanguage,
+                performanceProfile),
             new ReportingPlaybackSink(
                 output,
                 OutputLevelChanged,

@@ -51,14 +51,24 @@ def test_default_composition_switches_actual_medium_to_small_models(
         performance_profile="low-memory",
     )
     low_memory_asr = cast(FakeAsr, loader.loaded[1].asr)
+    pipeline.unload_all()
+    pipeline.translate_phrase(
+        session_id,
+        "en",
+        b"performance",
+        performance_profile="performance",
+    )
+    performance_asr = cast(FakeAsr, loader.loaded[2].asr)
 
     assert loader.requests == [
         ("balanced", "medium"),
         ("low-memory", "small"),
+        ("performance", "medium"),
     ]
     assert balanced_asr is not low_memory_asr
     assert balanced_asr.calls == [b"balanced"]
     assert low_memory_asr.calls == [b"low-memory"]
+    assert performance_asr.calls == [b"performance"]
 
 
 def test_default_composition_returns_unavailable_without_verified_receipt(

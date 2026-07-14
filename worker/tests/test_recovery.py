@@ -65,6 +65,30 @@ def test_second_oom_is_not_caught_as_success() -> None:
     assert registry.unload_count == 1
 
 
+def test_performance_oom_falls_back_through_balanced_to_low_memory() -> None:
+    calls: list[str] = []
+    registry = FakeRegistry()
+    releases: list[bool] = []
+    recovery = OomRecovery(
+        registry=registry,
+        release_memory=lambda: releases.append(True),
+        oom_error_type=FakeCudaOutOfMemoryError,
+    )
+
+    def operation(profile: str) -> str:
+        calls.append(profile)
+        if profile != "low-memory":
+            raise FakeCudaOutOfMemoryError(profile)
+        return "translated"
+
+    result = recovery.run(operation, "performance")
+
+    assert result == "translated"
+    assert calls == ["performance", "balanced", "low-memory"]
+    assert registry.unload_count == 2
+    assert releases == [True, True]
+
+
 def test_second_oom_maps_to_http_507_and_clears_session() -> None:
     pipeline = AlwaysOomPipeline()
     pipeline.oom_error_type = FakeCudaOutOfMemoryError
@@ -84,6 +108,28 @@ def test_second_oom_maps_to_http_507_and_clears_session() -> None:
         assert response.status_code == 507
         assert response.json()["detail"] == "GPU memory exhausted"
         assert pipeline.profiles == ["balanced", "low-memory"]
+        assert pipeline.clear_count == 1
+
+
+def test_low_memory_request_does_not_try_balanced_profile() -> None:
+    pipeline = AlwaysOomPipeline()
+    pipeline.oom_error_type = FakeCudaOutOfMemoryError
+    headers = {"X-Worker-Token": "expected-token"}
+
+    with TestClient(create_app("expected-token", cast(Any, pipeline))) as client:
+        response = client.post(
+            "/v1/translate-phrase",
+            data={
+                "sessionId": str(uuid4()),
+                "targetLanguage": "en",
+                "performanceProfile": "low-memory",
+            },
+            files={"audio": ("phrase.wav", b"phrase-wav", "audio/wav")},
+            headers=headers,
+        )
+
+        assert response.status_code == 507
+        assert pipeline.profiles == ["low-memory"]
         assert pipeline.clear_count == 1
 
 
@@ -119,6 +165,27 @@ def test_pipeline_activates_balanced_then_low_memory_before_asr() -> None:
     assert controller.activations == ["balanced", "low-memory"]
     assert controller.unload_count == 1
     assert result.performance_profile == "low-memory"
+
+
+def test_speaker_session_uses_selected_low_memory_profile() -> None:
+    controller = RecordingProfileController()
+    sessions = SpeakerSessionStore()
+    pipeline = PhrasePipeline(
+        conditioner=FakeConditioner(),
+        asr=ProfileAwareAsr(controller),
+        translator=FakeTranslator(),
+        synthesizer=FakeSynthesizer(),
+        sessions=sessions,
+        performance_profile="balanced",
+        profile_controller=controller,
+    )
+
+    pipeline.create_speaker_session(
+        b"reference",
+        performance_profile="low-memory",
+    )
+
+    assert controller.activations == ["low-memory"]
 
 
 def test_default_recovery_construction_and_health_do_not_import_torch(

@@ -92,8 +92,13 @@ class PhrasePipeline:
         self.performance_profile = performance_profile
         self.profile_controller = profile_controller or StaticModelResidency()
 
-    def create_speaker_session(self, reference_wav: bytes) -> UUID:
-        self.profile_controller.activate_profile(self.performance_profile)
+    def create_speaker_session(
+        self,
+        reference_wav: bytes,
+        performance_profile: str | None = None,
+    ) -> UUID:
+        active_profile = performance_profile or self.performance_profile
+        self.profile_controller.activate_profile(active_profile)
         session_id = uuid4()
         conditioning = self.conditioner.create(reference_wav)
         self.sessions.put(session_id, bytearray(reference_wav), conditioning)
@@ -128,7 +133,7 @@ class PhrasePipeline:
         translated = self.translator.translate(
             recognition.text,
             target_code,
-            unload_after=True,
+            unload_after=active_profile != "performance",
         )
         translate_ms = _elapsed_ms(started)
 
