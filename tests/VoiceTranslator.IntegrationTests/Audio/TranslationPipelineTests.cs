@@ -84,7 +84,14 @@ public sealed class TranslationPipelineTests
             }
         }
 
-        public int MaximumConcurrency { get; private set; }
+        private int maximumConcurrency;
+        public int MaximumConcurrency
+        {
+            get
+            {
+                lock (syncLock) return maximumConcurrency;
+            }
+        }
 
         public async Task<byte[]> TranslateAsync(
             Phrase phrase,
@@ -93,8 +100,8 @@ public sealed class TranslationPipelineTests
             var current = Interlocked.Increment(ref activeCount);
             lock (syncLock)
             {
-                MaximumConcurrency = Math.Max(
-                    MaximumConcurrency,
+                maximumConcurrency = Math.Max(
+                    maximumConcurrency,
                     current);
             }
             try
@@ -156,7 +163,12 @@ public sealed class TranslationPipelineTests
         public TaskCompletionSource Started { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public bool CancellationObserved { get; private set; }
+        private bool cancellationObserved;
+        public bool CancellationObserved
+        {
+            get => Volatile.Read(ref cancellationObserved);
+            private set => Volatile.Write(ref cancellationObserved, value);
+        }
 
         public async Task<byte[]> TranslateAsync(
             Phrase phrase,
