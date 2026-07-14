@@ -21,6 +21,132 @@ using VoiceTranslator.Infrastructure.LocalWorker;
 
 namespace VoiceTranslator.App.Services;
 
+
+internal interface ISessionHost : IAsyncDisposable
+{
+    event Action<Exception>? Failed;
+    event Action<double>? InputLevelChanged;
+    event Action<double>? OutputLevelChanged;
+    event Action<string>? ActivityChanged;
+    event Action<int, string>? ProgressChanged;
+
+    ISessionStopper SessionStopper { get; }
+
+    void Start();
+}
+
+internal interface ISessionHostFactory
+{
+    ISessionHost Create(
+        ILocalTranslationWorker worker,
+        AudioDeviceInfo microphone,
+        AudioDeviceInfo? physicalOutput,
+        AudioDeviceInfo? virtualOutput,
+        OutputMode outputMode,
+        string targetLanguage,
+        string performanceProfile,
+        byte[]? referenceWav,
+        ISessionFailureObserver failureObserver);
+}
+
+internal sealed class DefaultSessionHostFactory : ISessionHostFactory
+{
+    public ISessionHost Create(
+        ILocalTranslationWorker worker,
+        AudioDeviceInfo microphone,
+        AudioDeviceInfo? physicalOutput,
+        AudioDeviceInfo? virtualOutput,
+        OutputMode outputMode,
+        string targetLanguage,
+        string performanceProfile,
+        byte[]? referenceWav,
+        ISessionFailureObserver failureObserver)
+    {
+        return new DefaultSessionHost(
+            worker, microphone, physicalOutput, virtualOutput, outputMode, targetLanguage, performanceProfile, referenceWav, failureObserver);
+    }
+
+    private sealed class DefaultSessionHost : ISessionHost
+    {
+        private readonly DesktopTranslationSession session;
+        private readonly MMDeviceEnumerator enumerator;
+        private readonly MMDevice captureDevice;
+        private readonly MMDevice outputDevice;
+        private readonly MMDevice? virtualOutputDevice;
+
+        public ISessionStopper SessionStopper => session;
+
+        public event Action<Exception>? Failed { add => session.Failed += value; remove => session.Failed -= value; }
+        public event Action<double>? InputLevelChanged { add => session.InputLevelChanged += value; remove => session.InputLevelChanged -= value; }
+        public event Action<double>? OutputLevelChanged { add => session.OutputLevelChanged += value; remove => session.OutputLevelChanged -= value; }
+        public event Action<string>? ActivityChanged { add => session.ActivityChanged += value; remove => session.ActivityChanged -= value; }
+        public event Action<int, string>? ProgressChanged { add => session.ProgressChanged += value; remove => session.ProgressChanged -= value; }
+
+        public DefaultSessionHost(
+            ILocalTranslationWorker worker,
+            AudioDeviceInfo microphone,
+            AudioDeviceInfo? physicalOutput,
+            AudioDeviceInfo? virtualOutput,
+            OutputMode outputMode,
+            string targetLanguage,
+            string performanceProfile,
+            byte[]? referenceWav,
+            ISessionFailureObserver failureObserver)
+        {
+            enumerator = new MMDeviceEnumerator();
+            captureDevice = enumerator.GetDevice(microphone.Id);
+            var capture = new WasapiMicrophoneCapture(captureDevice);
+
+            var waveFormat = new WaveFormat(24_000, 16, 1);
+            IAudioPlaybackSink outputSink;
+            if (outputMode == OutputMode.Physical)
+            {
+                outputDevice = enumerator.GetDevice(physicalOutput?.Id ?? throw new InvalidOperationException("Физическое устройство вывода не выбрано."));
+                outputSink = new WasapiPlaybackSink(outputDevice, waveFormat);
+            }
+            else if (outputMode == OutputMode.VirtualCable)
+            {
+                virtualOutputDevice = enumerator.GetDevice(virtualOutput?.Id ?? throw new InvalidOperationException("Виртуальное устройство вывода не выбрано."));
+                outputDevice = virtualOutputDevice;
+                outputSink = new WasapiPlaybackSink(virtualOutputDevice, waveFormat);
+            }
+            else
+            {
+                outputDevice = enumerator.GetDevice(physicalOutput?.Id ?? throw new InvalidOperationException("Физическое устройство вывода не выбрано."));
+                virtualOutputDevice = enumerator.GetDevice(virtualOutput?.Id ?? throw new InvalidOperationException("Виртуальное устройство вывода не выбрано."));
+                outputSink = new AudioOutputRoutingSink(
+                    new WasapiPlaybackSink(outputDevice, waveFormat),
+                    new WasapiPlaybackSink(virtualOutputDevice, waveFormat),
+                    OutputMode.Both);
+            }
+
+            session = new DesktopTranslationSession(
+                worker,
+                capture,
+                outputSink,
+                targetLanguage,
+                failureObserver,
+                referenceWav,
+                referenceCaptured: null,
+                performanceProfile);
+        }
+
+        public void Start() => session.Start();
+
+        public async ValueTask DisposeAsync()
+        {
+            await session.DisposeAsync().ConfigureAwait(false);
+            captureDevice.Dispose();
+            outputDevice?.Dispose();
+            if (virtualOutputDevice is not null && virtualOutputDevice != outputDevice)
+            {
+                virtualOutputDevice.Dispose();
+            }
+            enumerator.Dispose();
+        }
+    }
+}
+
 public sealed class DesktopRuntimeService :
     IHostedService,
     ISessionFailureObserver,
@@ -36,11 +162,7 @@ public sealed class DesktopRuntimeService :
     private WorkerProcessManager? workerManager;
     private LocalWorkerClient? workerClient;
     private Task? deviceRefreshTask;
-    private DesktopTranslationSession? translationSession;
-    private MMDeviceEnumerator? sessionDeviceEnumerator;
-    private MMDevice? sessionCaptureDevice;
-    private MMDevice? sessionOutputDevice;
-    private MMDevice? sessionVirtualOutputDevice;
+    private ISessionHost? translationSession;
     private VoiceProfileRecordingSession? voiceProfileRecording;
     private MMDeviceEnumerator? voiceProfileDeviceEnumerator;
     private MMDevice? voiceProfileCaptureDevice;
@@ -48,6 +170,8 @@ public sealed class DesktopRuntimeService :
     private int voiceProfileRecordingSecondsRemaining =
         MainViewModel.VoiceProfileRecordingLimitSeconds;
     private double voiceProfileRecordingInputLevel;
+
+    internal ISessionHostFactory SessionFactory { get; set; } = new DefaultSessionHostFactory();
 
     public DesktopRuntimeService(
         MainViewModel viewModel,
@@ -187,49 +311,58 @@ public sealed class DesktopRuntimeService :
         }
     }
 
-    public async Task OnSessionFailureAsync(
+    private Task? activeCleanupTask;
+    private int isCleaningUp;
+
+    public Task OnSessionFailureAsync(
         SessionFailure failure,
         CancellationToken cancellationToken)
     {
-        await sessionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        if (Interlocked.Exchange(ref isCleaningUp, 1) != 0)
         {
-            if (translationSession is not null)
-            {
-                var coordinator = new SessionFailureCoordinator(translationSession);
-                await coordinator.OnSessionFailureAsync(failure, cancellationToken).ConfigureAwait(false);
+            return Task.CompletedTask;
+        }
 
-                translationSession.Failed -= OnTranslationSessionFailed;
-                translationSession.InputLevelChanged -= OnInputLevelChanged;
-                translationSession.OutputLevelChanged -= OnOutputLevelChanged;
-                translationSession.ActivityChanged -= OnActivityChanged;
-                translationSession.ProgressChanged -= OnProgressChanged;
-                await translationSession.DisposeAsync().ConfigureAwait(false);
-                translationSession = null;
+        activeCleanupTask = Task.Run(async () =>
+        {
+            await sessionGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                if (translationSession is not null)
+                {
+                    var coordinator = new SessionFailureCoordinator(translationSession.SessionStopper);
+                    await coordinator.OnSessionFailureAsync(failure, CancellationToken.None).ConfigureAwait(false);
+
+                    translationSession.Failed -= OnTranslationSessionFailed;
+                    translationSession.InputLevelChanged -= OnInputLevelChanged;
+                    translationSession.OutputLevelChanged -= OnOutputLevelChanged;
+                    translationSession.ActivityChanged -= OnActivityChanged;
+                    translationSession.ProgressChanged -= OnProgressChanged;
+                    await translationSession.DisposeAsync().ConfigureAwait(false);
+                    translationSession = null;
+                }
+            }
+            finally
+            {
+                sessionGate.Release();
+                Interlocked.Exchange(ref isCleaningUp, 0);
             }
 
-            sessionCaptureDevice?.Dispose();
-            sessionCaptureDevice = null;
-            sessionOutputDevice?.Dispose();
-            sessionOutputDevice = null;
-            sessionVirtualOutputDevice?.Dispose();
-            sessionVirtualOutputDevice = null;
-            sessionDeviceEnumerator?.Dispose();
-            sessionDeviceEnumerator = null;
-        }
-        finally
-        {
-            sessionGate.Release();
-        }
+            await ReportFailureAsync(
+                    $"{DescribeSessionFailure(failure)} Требуется перезапуск.")
+                .ConfigureAwait(false);
+        }, CancellationToken.None);
 
-        await ReportFailureAsync(
-                $"{DescribeSessionFailure(failure)} Требуется перезапуск.")
-            .ConfigureAwait(false);
+        return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
     {
         await StopAsync(CancellationToken.None).ConfigureAwait(false);
+        if (activeCleanupTask is not null)
+        {
+            try { await activeCleanupTask.ConfigureAwait(false); } catch { }
+        }
         viewModel.StartRequested -= OnStartRequested;
         viewModel.StopRequested -= OnStopRequested;
         viewModel.RenameVoiceProfileRequested -= OnRenameVoiceProfileRequested;
@@ -596,29 +729,19 @@ public sealed class DesktopRuntimeService :
                 .LoadReferenceAsync(selectedProfile.Id, lifetime.Token)
                 .ConfigureAwait(false);
 
-            DesktopTranslationSession session;
+            ISessionHost session;
             try
             {
-                sessionDeviceEnumerator = new MMDeviceEnumerator();
-                sessionCaptureDevice =
-                    sessionDeviceEnumerator.GetDevice(microphone.Id);
-                var capture = new WasapiMicrophoneCapture(
-                    sessionCaptureDevice);
-                IAudioPlaybackSink output = CreatePlaybackSink(
-                    sessionDeviceEnumerator,
+                session = SessionFactory.Create(
+                    worker,
+                    microphone,
                     physicalOutput,
                     virtualOutput,
-                    outputMode);
-                session = new DesktopTranslationSession(
-                    worker,
-                    capture,
-                    output,
+                    outputMode,
                     targetLanguage,
-                    this,
+                    viewModel.SelectedPerformanceProfile.Code,
                     referenceWav,
-                    referenceCaptured: null,
-                    performanceProfile:
-                        viewModel.SelectedPerformanceProfile.Code);
+                    this);
                 referenceWav = null;
             }
             finally
@@ -657,15 +780,6 @@ public sealed class DesktopRuntimeService :
                 await translationSession.DisposeAsync().ConfigureAwait(false);
                 translationSession = null;
             }
-
-            sessionCaptureDevice?.Dispose();
-            sessionCaptureDevice = null;
-            sessionOutputDevice?.Dispose();
-            sessionOutputDevice = null;
-            sessionVirtualOutputDevice?.Dispose();
-            sessionVirtualOutputDevice = null;
-            sessionDeviceEnumerator?.Dispose();
-            sessionDeviceEnumerator = null;
         }
         finally
         {
@@ -706,53 +820,19 @@ public sealed class DesktopRuntimeService :
             .ConfigureAwait(false);
     }
 
-    private IAudioPlaybackSink CreatePlaybackSink(
-        MMDeviceEnumerator deviceEnumerator,
-        AudioDeviceInfo? physicalOutput,
-        AudioDeviceInfo? virtualOutput,
-        OutputMode outputMode)
-    {
-        var waveFormat = new WaveFormat(24_000, 16, 1);
-        if (outputMode == OutputMode.Physical)
-        {
-            sessionOutputDevice = deviceEnumerator.GetDevice(
-                physicalOutput?.Id
-                ?? throw new InvalidOperationException(
-                    "Физическое устройство вывода не выбрано."));
-            return new WasapiPlaybackSink(sessionOutputDevice, waveFormat);
-        }
 
-        if (outputMode == OutputMode.VirtualCable)
-        {
-            sessionVirtualOutputDevice = deviceEnumerator.GetDevice(
-                virtualOutput?.Id
-                ?? throw new InvalidOperationException(
-                    "Виртуальное устройство вывода не выбрано."));
-            return new WasapiPlaybackSink(
-                sessionVirtualOutputDevice,
-                waveFormat);
-        }
 
-        sessionOutputDevice = deviceEnumerator.GetDevice(
-            physicalOutput?.Id
-            ?? throw new InvalidOperationException(
-                "Физическое устройство вывода не выбрано."));
-        sessionVirtualOutputDevice = deviceEnumerator.GetDevice(
-            virtualOutput?.Id
-            ?? throw new InvalidOperationException(
-                "Виртуальное устройство вывода не выбрано."));
-        return new AudioOutputRoutingSink(
-            new WasapiPlaybackSink(sessionOutputDevice, waveFormat),
-            new WasapiPlaybackSink(sessionVirtualOutputDevice, waveFormat),
-            OutputMode.Both);
-    }
-
-    private static Task DispatchAsync(Action action)
+    internal Func<Action, Task> DispatcherFunc { get; set; } = action =>
     {
         Dispatcher dispatcher = System.Windows.Application.Current.Dispatcher;
         return dispatcher.CheckAccess()
             ? RunInline(action)
             : dispatcher.InvokeAsync(action).Task;
+    };
+
+    private Task DispatchAsync(Action action)
+    {
+        return DispatcherFunc(action);
     }
 
     private static Task RunInline(Action action)
