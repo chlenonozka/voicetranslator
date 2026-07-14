@@ -30,7 +30,9 @@ public sealed class DesktopRuntimeServiceTests
 
         // Assert
         var timeout = Task.Delay(TimeSpan.FromSeconds(2));
-        var completed = await Task.WhenAny(cleanupTask, timeout);
+        var taskToWait = service.ActiveCleanupTask ?? cleanupTask;
+        var completed = await Task.WhenAny(taskToWait, timeout);
+        completed.Should().Be(taskToWait, "cleanup task should not deadlock");
         completed.Should().Be(cleanupTask, "cleanup task should not deadlock");
     }
 
@@ -51,6 +53,7 @@ public sealed class DesktopRuntimeServiceTests
         var task2 = service.OnSessionFailureAsync(SessionFailure.WorkerExited, CancellationToken.None);
 
         await Task.WhenAll(task1, task2);
+        if (service.ActiveCleanupTask != null) await service.ActiveCleanupTask;
 
         // Assert
         session.DisposeCount.Should().Be(1);
@@ -69,6 +72,7 @@ public sealed class DesktopRuntimeServiceTests
 
         // Act
         await service.OnSessionFailureAsync(SessionFailure.GpuMemoryExhausted, CancellationToken.None);
+        if (service.ActiveCleanupTask != null) await service.ActiveCleanupTask;
 
         // Assert
         session.DisposeCount.Should().Be(1);

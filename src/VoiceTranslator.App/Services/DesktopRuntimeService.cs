@@ -311,7 +311,7 @@ public sealed class DesktopRuntimeService :
         }
     }
 
-    private Task? activeCleanupTask;
+    internal Task? ActiveCleanupTask { get; private set; }
     private int isCleaningUp;
 
     public Task OnSessionFailureAsync(
@@ -323,7 +323,7 @@ public sealed class DesktopRuntimeService :
             return Task.CompletedTask;
         }
 
-        activeCleanupTask = Task.Run(async () =>
+        ActiveCleanupTask = Task.Run(async () =>
         {
             await sessionGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
             try
@@ -359,9 +359,9 @@ public sealed class DesktopRuntimeService :
     public async ValueTask DisposeAsync()
     {
         await StopAsync(CancellationToken.None).ConfigureAwait(false);
-        if (activeCleanupTask is not null)
+        if (ActiveCleanupTask is not null)
         {
-            try { await activeCleanupTask.ConfigureAwait(false); } catch { }
+            try { await ActiveCleanupTask.ConfigureAwait(false); } catch { }
         }
         viewModel.StartRequested -= OnStartRequested;
         viewModel.StopRequested -= OnStopRequested;
