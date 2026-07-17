@@ -9,7 +9,7 @@ def test_8gb_gpu_uses_balanced_profile_when_memory_is_available() -> None:
     profile = choose_profile(total_bytes=8 * 1024**3, free_bytes=7 * 1024**3)
 
     assert profile.name == "balanced"
-    assert profile.whisper_model == "medium"
+    assert profile.whisper_model == "large-v3-turbo"
     assert profile.whisper_compute_type == "int8"
 
 

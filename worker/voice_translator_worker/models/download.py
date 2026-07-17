@@ -7,7 +7,7 @@ from .model_manager import ModelManager, ModelManifest
 
 
 DEFAULT_MODEL_IDS = (
-    "whisper-medium",
+    "whisper-large-v3-turbo",
     "whisper-small",
     "nllb-600m",
     "xtts-v2",

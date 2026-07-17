@@ -21,7 +21,7 @@
   </Folder>
   <Folder Name="/models/">
     <File Path="models/manifests/nllb-600m.json" />
-    <File Path="models/manifests/whisper-medium.json" />
+    <File Path="models/manifests/whisper-large-v3-turbo.json" />
     <File Path="models/manifests/whisper-small.json" />
     <File Path="models/manifests/xtts-v2.json" />
   </Folder>

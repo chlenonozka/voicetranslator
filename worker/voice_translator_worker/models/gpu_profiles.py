@@ -23,7 +23,7 @@ class CudaReport:
 def choose_profile(total_bytes: int, free_bytes: int) -> GpuProfile:
     gib = 1024**3
     if total_bytes >= 7 * gib and free_bytes >= 5 * gib:
-        return GpuProfile("balanced", "medium", "int8", "int8_float16")
+        return GpuProfile("balanced", "large-v3-turbo", "int8", "int8_float16")
     return GpuProfile("low-memory", "small", "int8", "int8_float16")
 
 

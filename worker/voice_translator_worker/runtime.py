@@ -30,7 +30,7 @@ from .privacy.session_store import SpeakerSessionStore
 
 REQUIRED_MODEL_IDS = frozenset(
     {
-        "whisper-medium",
+        "whisper-large-v3-turbo",
         "whisper-small",
         "nllb-600m",
         "xtts-v2",
@@ -46,11 +46,7 @@ def _configure_windows_cuda_runtime() -> None:
         return
 
     torch_library_directory = (
-        Path(sys.prefix)
-        / "Lib"
-        / "site-packages"
-        / "torch"
-        / "lib"
+        Path(sys.prefix) / "Lib" / "site-packages" / "torch" / "lib"
     )
     directory_text = str(torch_library_directory)
     if (
@@ -59,14 +55,10 @@ def _configure_windows_cuda_runtime() -> None:
     ):
         return
 
-    os.environ["PATH"] = os.pathsep.join(
-        (directory_text, os.environ.get("PATH", ""))
-    )
+    os.environ["PATH"] = os.pathsep.join((directory_text, os.environ.get("PATH", "")))
     add_dll_directory = getattr(os, "add_dll_directory", None)
     if add_dll_directory is not None:
-        _WINDOWS_CUDA_DLL_HANDLES.append(
-            add_dll_directory(directory_text)
-        )
+        _WINDOWS_CUDA_DLL_HANDLES.append(add_dll_directory(directory_text))
     _WINDOWS_CUDA_DLL_DIRECTORIES.add(directory_text)
 
 
