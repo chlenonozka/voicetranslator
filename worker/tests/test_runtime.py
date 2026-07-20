@@ -316,7 +316,7 @@ def create_verified_config(tmp_path: Path) -> RuntimeConfig:
     model_root = tmp_path / "models"
     model_root.mkdir()
     for model_id in (
-        "whisper-medium",
+        "whisper-large-v3-turbo",
         "whisper-small",
         "nllb-600m",
         "xtts-v2",
