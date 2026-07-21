@@ -28,6 +28,9 @@ class NllbTranslator:
             results = self.translator.translate_batch(
                 [source_tokens],
                 target_prefix=[[target.nllb]],
+                beam_size=1,
+                no_repeat_ngram_size=3,
+                repetition_penalty=1.2,
             )
             target_tokens = results[0].hypotheses[0][1:]
             target_ids = self.tokenizer.convert_tokens_to_ids(target_tokens)

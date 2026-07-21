@@ -30,6 +30,7 @@ class RussianAsr:
             vad_filter=True,
             beam_size=self.beam_size,
             condition_on_previous_text=False,
+            no_repeat_ngram_size=3,
         )
         values = list(segments)
         text = " ".join(segment.text.strip() for segment in values).strip()

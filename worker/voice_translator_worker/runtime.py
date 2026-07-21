@@ -254,7 +254,13 @@ class InMemoryCoquiXttsAdapter:
         return InMemoryCoquiXttsAdapter(model)
 
     def create(self, reference_wav: bytes) -> Any:
+        import torch
+
         waveform, sample_rate = _load_pcm16_wave(reference_wav)
+        max_val = torch.abs(waveform).max()
+        if max_val > 0:
+            waveform = (waveform / max_val) * 0.75
+
         return (
             self.model.get_gpt_cond_latents(
                 waveform,

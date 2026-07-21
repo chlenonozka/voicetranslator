@@ -59,6 +59,7 @@ class FakeTranslator:
         source_batch: list[list[str]],
         *,
         target_prefix: list[list[str]],
+        **kwargs: object,
     ) -> list[FakeResult]:
         self.source_batch = source_batch
         self.target_prefix = target_prefix
